@@ -245,10 +245,28 @@ export default function OrderTrackPage() {
 
       setSelectedMethodName(providerLabel);
 
-      await api.tables.pay(tableId, {
+      const res = await api.tables.pay(tableId, {
         paymentMethod: method,
         referenceNote: `[${providerLabel} USSD Push] Phone: +251 ${data.phoneNumber}`,
       });
+
+      const settledAmount = Number(res?.transaction?.amount || data.grandTotal);
+      const settledItems = Array.isArray(res?.transaction?.itemSnapshot) && res.transaction.itemSnapshot.length > 0
+        ? res.transaction.itemSnapshot
+        : activeOrders.flatMap((o) =>
+            (o.items || []).map((i) => ({
+              name: i.menuItem?.name || 'Dish',
+              quantity: i.quantity,
+              unitPrice: Number(i.unitPrice),
+            }))
+          );
+
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(`smart_menu_paid_amount_${tableId}`, settledAmount.toString());
+          sessionStorage.setItem(`smart_menu_paid_items_${tableId}`, JSON.stringify(settledItems));
+        }
+      } catch {}
 
       setPaymentSubmitted(true);
       setBillRequested(true);
@@ -384,11 +402,48 @@ export default function OrderTrackPage() {
 
   // --- 1. THANK YOU / PAID SCREEN (When Completed) ---
   if (isAllCompleted) {
-    const totalPaid = orders.reduce(
-      (sum, o) => sum + Number(o.totalAmount || 0),
-      0
-    );
-    const allCompletedItems = orders.flatMap((o) => o.items || []);
+    let totalPaid = 0;
+    let allCompletedItems: any[] = [];
+
+    // Prioritize exact settlement amount and items from sessionStorage / query param
+    let storedAmount = 0;
+    let storedItems: any[] = [];
+    try {
+      if (typeof window !== 'undefined') {
+        const amt = sessionStorage.getItem(`smart_menu_paid_amount_${tableId}`);
+        if (amt && Number(amt) > 0) storedAmount = Number(amt);
+        const itms = sessionStorage.getItem(`smart_menu_paid_items_${tableId}`);
+        if (itms) storedItems = JSON.parse(itms);
+      }
+    } catch {}
+
+    const queryAmt = Number(searchParams.get('amount') || 0);
+
+    if (storedAmount > 0) {
+      totalPaid = storedAmount;
+      allCompletedItems = storedItems.map((i: any) => ({
+        id: i.id || i.name,
+        quantity: i.quantity || 1,
+        unitPrice: i.unitPrice || i.price || (i.total && i.quantity ? i.total / i.quantity : 0),
+        menuItem: { name: i.name || i.menuItem?.name || 'Dish' },
+      }));
+    } else if (queryAmt > 0) {
+      totalPaid = queryAmt;
+      allCompletedItems = orders.flatMap((o) => o.items || []);
+    } else {
+      // Fallback: only include orders belonging to the current session (within last 3 hours)
+      const nowMs = Date.now();
+      const sessionRecentOrders = orders.filter((o) => {
+        const orderTime = new Date(o.createdAt).getTime();
+        return nowMs - orderTime < 3 * 60 * 60 * 1000;
+      });
+      const targetOrders = sessionRecentOrders.length > 0 ? sessionRecentOrders : orders;
+      totalPaid = targetOrders.reduce(
+        (sum, o) => sum + Number(o.totalAmount || 0),
+        0
+      );
+      allCompletedItems = targetOrders.flatMap((o) => o.items || []);
+    }
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#f0f4f9] via-[#edf2f8] to-[#e4ebf5] text-slate-900 flex flex-col justify-between p-4 sm:p-6 font-sans">

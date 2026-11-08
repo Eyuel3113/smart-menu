@@ -130,6 +130,10 @@ export class TableService {
           },
         },
       },
+      transactions: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       serviceRequests: {
         where: {
           status: {
@@ -611,17 +615,11 @@ export class TableService {
         });
       }
 
-      // 2. Attach staffId to latest transaction if not set
-      const latestTx = await tx.transaction.findFirst({
+      // 2. Mark all pending transactions for this table as settled by staff
+      await tx.transaction.updateMany({
         where: { tableId, settledByStaffId: null },
-        orderBy: { createdAt: 'desc' },
+        data: { settledByStaffId: staffId || 'STAFF_CLEARED' },
       });
-      if (latestTx && staffId) {
-        await tx.transaction.update({
-          where: { id: latestTx.id },
-          data: { settledByStaffId: staffId },
-        });
-      }
 
       // 3. Resolve pending service requests
       await tx.serviceRequest.updateMany({

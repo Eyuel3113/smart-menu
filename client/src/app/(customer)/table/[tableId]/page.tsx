@@ -684,6 +684,24 @@ function CustomerMenuContent() {
           : orderNotes;
 
         const createdOrder = await api.orders.place(tableId, orderPayload, finalNotes);
+        const realPaidAmount = Number(createdOrder.totalAmount || totalAmount || 0);
+
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(`smart_menu_paid_amount_${tableId}`, realPaidAmount.toString());
+            sessionStorage.setItem(
+              `smart_menu_paid_items_${tableId}`,
+              JSON.stringify(
+                cartItems.map((c) => ({
+                  name: c.menuItem.name,
+                  quantity: c.quantity,
+                  unitPrice: Number(c.menuItem.price),
+                }))
+              )
+            );
+          }
+        } catch {}
+
         clearCart();
         setIsCartOpen(false);
         setIsPreOrderPaymentOpen(false);
@@ -701,7 +719,8 @@ function CustomerMenuContent() {
 
         const tokenQuery = activeToken ? `&token=${encodeURIComponent(activeToken)}` : '';
         const paidQuery = paidNote ? '&paid=true' : '';
-        router.push(`/table/${tableId}/track?orderId=${createdOrder.id}${paidQuery}${tokenQuery}`);
+        const amountQuery = `&amount=${realPaidAmount}`;
+        router.push(`/table/${tableId}/track?orderId=${createdOrder.id}${paidQuery}${amountQuery}${tokenQuery}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to place order';
         alert(msg);

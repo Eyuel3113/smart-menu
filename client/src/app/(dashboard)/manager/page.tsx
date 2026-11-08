@@ -72,31 +72,88 @@ export default function ManagerDashboardPage() {
       setTables(tablesData || []);
       setRequests(requestsData || []);
 
-      // Derive any active paid pending tables with full item details
+      // Derive any active paid pending tables with real transaction amounts & items
+      const clearedTableIds = new Set<string>();
+      try {
+        if (typeof window !== 'undefined') {
+          const raw = sessionStorage.getItem('smart_menu_cleared_settlement_tables');
+          if (raw) JSON.parse(raw).forEach((id: string) => clearedTableIds.add(id));
+        }
+      } catch {}
+
       const currentPaid = (tablesData || [])
-        .filter((t: Table) => t.status === 'PAID_PENDING')
+        .filter((t: Table) => {
+          if (t.status !== 'PAID_PENDING') return false;
+          if (clearedTableIds.has(t.id)) return false;
+
+          const latestTx = t.transactions && t.transactions.length > 0 ? t.transactions[0] : null;
+          // If transaction was already cleared by staff, do not show in Live Ops!
+          if (latestTx?.settledByStaffId) return false;
+
+          // If no transaction record, only show if there are active non-completed orders
+          const activeOrders = (ordersData || []).filter(
+            (o: Order) => o.tableId === t.id && o.status !== 'COMPLETED' && o.status !== 'REJECTED'
+          );
+          if (!latestTx && activeOrders.length === 0) return false;
+
+          return true;
+        })
         .map((t: Table) => {
-          const tableOrders = (ordersData || []).filter((o: Order) => o.tableId === t.id);
-          const allItems = tableOrders.flatMap((o: Order) =>
-            (o.items || []).map((i) => ({
-              name: i.menuItem?.name || 'Dish',
-              quantity: i.quantity,
-              price: Number(i.unitPrice) * i.quantity,
-            }))
-          );
-          const totalAmount = tableOrders.reduce(
-            (sum: number, o: Order) => sum + Number(o.totalAmount || 0),
-            0
-          );
+          const latestTx = t.transactions && t.transactions.length > 0 ? t.transactions[0] : null;
+          let realAmount = 0;
+          let realItems: { name: string; quantity: number; price: number }[] = [];
+          let paymentNote = 'Direct Mobile USSD (Telebirr / CBE Birr)';
+          let orderId = t.id;
+
+          if (latestTx) {
+            realAmount = Number(latestTx.amount);
+            paymentNote =
+              latestTx.referenceNote ||
+              (latestTx.paymentMethod === 'TELEBIRR'
+                ? 'Telebirr Mobile USSD'
+                : latestTx.paymentMethod === 'CBE_BIRR'
+                ? 'CBE Birr Mobile USSD'
+                : 'Direct Mobile USSD');
+            orderId = latestTx.id;
+
+            if (Array.isArray(latestTx.itemSnapshot)) {
+              realItems = latestTx.itemSnapshot.map((i: any) => ({
+                name: i.name || 'Dish',
+                quantity: Number(i.quantity || 1),
+                price: Number(i.total || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0),
+              }));
+            }
+          }
+
+          // Fallback if no item snapshot: use ONLY active non-completed orders, NEVER old completed ones!
+          if (realItems.length === 0) {
+            const activeOrders = (ordersData || []).filter(
+              (o: Order) => o.tableId === t.id && o.status !== 'COMPLETED' && o.status !== 'REJECTED'
+            );
+            realItems = activeOrders.flatMap((o: Order) =>
+              (o.items || []).map((i) => ({
+                name: i.menuItem?.name || 'Dish',
+                quantity: i.quantity,
+                price: Number(i.unitPrice) * i.quantity,
+              }))
+            );
+            if (realAmount === 0) {
+              realAmount = activeOrders.reduce(
+                (sum: number, o: Order) => sum + Number(o.totalAmount || 0),
+                0
+              );
+            }
+            orderId = activeOrders[0]?.id || t.id;
+          }
 
           return {
             tableId: t.id,
             tableNumber: t.tableNumber,
-            amount: totalAmount,
-            referenceNote: 'Direct Mobile USSD (Telebirr / CBE Birr)',
-            paidAt: new Date().toISOString(),
-            items: allItems,
-            orderId: tableOrders[0]?.id || t.id,
+            amount: realAmount,
+            referenceNote: paymentNote,
+            paidAt: latestTx?.createdAt || new Date().toISOString(),
+            items: realItems,
+            orderId: orderId,
             areaTag: t.area?.name || 'Main Dining',
           };
         });
@@ -160,18 +217,30 @@ export default function ManagerDashboardPage() {
         sound.playSuccessDing();
       } catch {}
 
-      // Find current orders for this table
-      const tableOrders = orders.filter((o) => o.tableId === table.id);
-      const allItems = tableOrders.flatMap((o) =>
-        (o.items || []).map((i) => ({
-          name: i.menuItem?.name || 'Dish',
-          quantity: i.quantity,
-          price: Number(i.unitPrice) * i.quantity,
-        }))
-      );
+      // Find real items: prioritize transaction itemSnapshot, otherwise active orders only
+      let allItems: { name: string; quantity: number; price: number }[] = [];
+      if (Array.isArray(transaction?.itemSnapshot) && transaction.itemSnapshot.length > 0) {
+        allItems = transaction.itemSnapshot.map((i: any) => ({
+          name: i.name || 'Dish',
+          quantity: Number(i.quantity || 1),
+          price: Number(i.total || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0),
+        }));
+      } else {
+        const tableOrders = orders.filter((o) => o.tableId === table.id && o.status !== 'COMPLETED' && o.status !== 'REJECTED');
+        allItems = tableOrders.flatMap((o) =>
+          (o.items || []).map((i) => ({
+            name: i.menuItem?.name || 'Dish',
+            quantity: i.quantity,
+            price: Number(i.unitPrice) * i.quantity,
+          }))
+        );
+      }
+
       const totalAmount =
-        transaction?.amount ||
-        tableOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+        Number(transaction?.amount) ||
+        orders
+          .filter((o) => o.tableId === table.id && o.status !== 'COMPLETED' && o.status !== 'REJECTED')
+          .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
 
       setPaidAlerts((prev) => {
         if (prev.some((a) => a.tableId === table.id)) return prev;
@@ -181,9 +250,9 @@ export default function ManagerDashboardPage() {
             tableNumber: table.tableNumber,
             amount: totalAmount,
             referenceNote: transaction?.referenceNote || 'Direct Mobile USSD Payment',
-            paidAt: new Date().toISOString(),
+            paidAt: transaction?.createdAt || new Date().toISOString(),
             items: allItems,
-            orderId: tableOrders[0]?.id || table.id,
+            orderId: transaction?.id || table.id,
             areaTag: table.area?.name || 'Main Dining',
           },
           ...prev,
@@ -205,12 +274,24 @@ export default function ManagerDashboardPage() {
       cleanupServiceUpdate();
       cleanupPaidPending();
     };
-  }, [on]);
+  }, [on, orders]);
 
   // One-click handler: Admin confirms table payment, clears active orders to history
   const handleClearPaidSession = (tableId: string, tableNumber: number) => {
     try {
       sound.playSuccessDing();
+    } catch {}
+
+    // Record in persistent sessionStorage so cleared tables never reappear upon page refresh
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = sessionStorage.getItem('smart_menu_cleared_settlement_tables');
+        const list = raw ? JSON.parse(raw) : [];
+        if (!list.includes(tableId)) {
+          list.push(tableId);
+          sessionStorage.setItem('smart_menu_cleared_settlement_tables', JSON.stringify(list));
+        }
+      }
     } catch {}
 
     // Immediately remove paid alert card from Live Ops
