@@ -10,6 +10,7 @@ import FilterBar from '@/components/tables/FilterBar';
 import TableCard from '@/components/tables/TableCard';
 import { useSocket } from '@/hooks/useSocket';
 import sound from '@/lib/sound';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   Layers,
   Plus,
@@ -416,10 +417,10 @@ export default function TableMatrixZonesPage() {
 
         {/* --- TABLE MATRIX GRID (10 CARDS) --- */}
         {loading ? (
-          <div className="py-24 text-center text-slate-500 dark:text-blue-300 text-xs flex flex-col items-center gap-3">
-            <div className="w-7 h-7 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <span>Synchronizing live floor table matrix...</span>
-          </div>
+          <RestaurantLoader
+            message="Synchronizing live dining floor matrix..."
+            subMessage="Real-time guest occupancy, orders, and table states in sync"
+          />
         ) : filteredTables.length === 0 ? (
           <div className="py-20 text-center rounded-3xl bg-white/80 border border-slate-200 dark:bg-[#0c142b]/60 dark:border-blue-900/40 space-y-4">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 dark:bg-blue-600/10 dark:border-blue-500/20 dark:text-blue-400 flex items-center justify-center">

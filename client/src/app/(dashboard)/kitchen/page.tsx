@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { Order } from '@/lib/types';
 import { useSocket } from '@/hooks/useSocket';
 import sound from '@/lib/sound';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   Flame,
   CheckCircle,
@@ -22,6 +23,7 @@ import {
   Settings,
   LogOut,
   Radio,
+  CheckCheck,
 } from 'lucide-react';
 
 export default function KitchenDisplayPage() {
@@ -33,10 +35,33 @@ export default function KitchenDisplayPage() {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [dismissedOrderIds, setDismissedOrderIds] = useState<Set<string>>(new Set());
+  const [dismissedOrderIds, setDismissedOrderIds] = useState<Set<string>>(() => {
+    try {
+      if (typeof window === 'undefined') return new Set();
+      const raw = sessionStorage.getItem('smart_menu_dismissed_kitchen_tickets');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [profileOpen, setProfileOpen] = useState<boolean>(false);
 
   const [actionPending, startActionTransition] = useTransition();
+
+  const markIdDismissed = (id: string) => {
+    setDismissedOrderIds((prev) => {
+      const next = new Set(prev).add(id);
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(
+            'smart_menu_dismissed_kitchen_tickets',
+            JSON.stringify(Array.from(next))
+          );
+        }
+      } catch {}
+      return next;
+    });
+  };
 
   // Connect to the kitchen_display socket room (only when authenticated)
   const { socket, on, isConnected } = useSocket({ isKitchen: true, autoConnect: isAuthenticated });
@@ -60,8 +85,18 @@ export default function KitchenDisplayPage() {
 
       // Fetch active kitchen orders using api.orders.getKitchen()
       const data = await api.orders.getKitchen();
+      let storedDismissed = new Set<string>();
+      try {
+        const raw = sessionStorage.getItem('smart_menu_dismissed_kitchen_tickets');
+        if (raw) storedDismissed = new Set(JSON.parse(raw));
+      } catch {}
+
       const activeTickets = Array.isArray(data)
-        ? data.filter((o) => o.status === 'ACCEPTED' || o.status === 'PREPARING')
+        ? data.filter(
+            (o) =>
+              (o.status === 'ACCEPTED' || o.status === 'PREPARING') &&
+              !storedDismissed.has(o.id)
+          )
         : [];
       setOrders(activeTickets);
     } catch (err) {
@@ -132,7 +167,7 @@ export default function KitchenDisplayPage() {
 
     // When food is ready or served or cancelled, permanently remove ticket from active cook screen
     const removeTicket = (doneTicket: Order) => {
-      setDismissedOrderIds((prev) => new Set(prev).add(doneTicket.id));
+      markIdDismissed(doneTicket.id);
       setOrders((prev) => prev.filter((o) => o.id !== doneTicket.id));
     };
 
@@ -140,6 +175,18 @@ export default function KitchenDisplayPage() {
     const cleanupServed = on<Order>('order:served', removeTicket);
     const cleanupCompleted = on<Order>('order:completed', removeTicket);
     const cleanupRejected = on<Order>('order:rejected', removeTicket);
+
+    // If manager settles & concludes session for a table, clear table orders from KDS immediately
+    const cleanupConcluded = on<{ tableId?: string } | string>('table:session_concluded', (data) => {
+      const concludedTableId = typeof data === 'string' ? data : data?.tableId;
+      if (concludedTableId) {
+        setOrders((prev) => {
+          const removed = prev.filter((o) => o.tableId === concludedTableId);
+          removed.forEach((o) => markIdDismissed(o.id));
+          return prev.filter((o) => o.tableId !== concludedTableId);
+        });
+      }
+    });
 
     return () => {
       cleanupAccepted();
@@ -149,6 +196,7 @@ export default function KitchenDisplayPage() {
       cleanupServed();
       cleanupCompleted();
       cleanupRejected();
+      cleanupConcluded();
     };
   }, [on]);
 
@@ -170,8 +218,8 @@ export default function KitchenDisplayPage() {
   };
 
   const handleMarkReady = (orderId: string) => {
-    // Immediately remove from screen
-    setDismissedOrderIds((prev) => new Set(prev).add(orderId));
+    // Immediately remove from screen and record to persistent dismissed list
+    markIdDismissed(orderId);
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
     try {
       sound.playSuccessDing();
@@ -349,10 +397,10 @@ export default function KitchenDisplayPage() {
       {/* Main KDS Grid */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative z-10">
         {loading ? (
-          <div className="h-64 flex flex-col items-center justify-center space-y-3 font-sans">
-            <div className="w-10 h-10 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-500 text-sm">Synchronizing active cooking tickets...</p>
-          </div>
+          <RestaurantLoader
+            message="Synchronizing active kitchen pipeline..."
+            subMessage="Incoming table tickets and live cook times in sync"
+          />
         ) : displayTickets.length === 0 ? (
           <div className="py-24 flex flex-col items-center justify-center rounded-3xl bg-white/80 dark:bg-[#0f1738]/60 border border-slate-200 dark:border-blue-900/40 text-center space-y-3 font-sans max-w-lg mx-auto shadow-sm">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
@@ -429,14 +477,26 @@ export default function KitchenDisplayPage() {
                   {/* Card Action Footer */}
                   <div className="p-4 pt-0">
                     {!isCooking ? (
-                      <button
-                        disabled={actionPending}
-                        onClick={() => handleStartPreparing(ticket.id)}
-                        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-gray-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-95 transition cursor-pointer tracking-wider"
-                      >
-                        <Flame className="w-4 h-4 fill-gray-950" />
-                        <span>START COOKING</span>
-                      </button>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          disabled={actionPending}
+                          onClick={() => handleStartPreparing(ticket.id)}
+                          className="col-span-2 py-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-gray-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-orange-500/25 active:scale-95 transition cursor-pointer tracking-wider"
+                          title="Begin cooking this ticket"
+                        >
+                          <Flame className="w-4 h-4 fill-gray-950" />
+                          <span>START COOKING</span>
+                        </button>
+                        <button
+                          disabled={actionPending}
+                          onClick={() => handleMarkReady(ticket.id)}
+                          className="col-span-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-1 shadow-md shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
+                          title="Mark ready immediately"
+                        >
+                          <CheckCheck className="w-4 h-4 stroke-[2.5]" />
+                          <span>READY</span>
+                        </button>
+                      </div>
                     ) : (
                       <button
                         disabled={actionPending}

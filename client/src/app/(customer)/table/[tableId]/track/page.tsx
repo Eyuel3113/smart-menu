@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { Order, OrderStatus, Table } from '@/lib/types';
 import { useSocket } from '@/hooks/useSocket';
 import sound from '@/lib/sound';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   Clock,
   ChefHat,
@@ -373,10 +374,11 @@ export default function OrderTrackPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f0f4f9] flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans">
-        <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-500 font-semibold text-sm">Connecting to live table session...</p>
-      </div>
+      <RestaurantLoader
+        variant="fullscreen"
+        message="Connecting to live table session..."
+        subMessage="Fetching kitchen rounds, course updates, and dining progress"
+      />
     );
   }
 

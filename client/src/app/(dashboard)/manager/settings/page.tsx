@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { RestaurantBranding } from '@/lib/types';
 import ManagerNav from '@/components/ManagerNav';
 import sound from '@/lib/sound';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   Settings,
   Save,
@@ -178,10 +179,10 @@ export default function ExperienceSettingsPage() {
         </div>
 
         {loading ? (
-          <div className="py-24 flex flex-col items-center justify-center space-y-3 font-sans">
-            <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-500 text-xs font-medium">Loading experience policy settings...</p>
-          </div>
+          <RestaurantLoader
+            message="Loading Experience & Policy Settings..."
+            subMessage="Fetching diner review shower controls and payment timing policies"
+          />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Status Feedback Banners */}

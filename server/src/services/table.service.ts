@@ -12,6 +12,7 @@ import {
   emitTablePaidPending,
   emitTableSessionConcluded,
 } from '../sockets/serviceEvents';
+import { emitOrderCompleted } from '../sockets/orderEvents';
 
 export class TableService {
   static async validateTableToken(tableId: string, token: string) {
@@ -646,6 +647,13 @@ export class TableService {
       // 5. Broadcast to Manager and Table Room
       emitTableStatusUpdated(updatedTable);
       emitTableSessionConcluded(tableId);
+
+      // 6. Notify Kitchen Display System that these orders are finished & closed
+      if (table.orders && table.orders.length > 0) {
+        table.orders.forEach((ord) => {
+          emitOrderCompleted({ ...ord, status: 'COMPLETED' });
+        });
+      }
 
       return updatedTable;
     });

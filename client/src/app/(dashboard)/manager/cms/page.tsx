@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { RestaurantBranding } from '@/lib/types';
 import ManagerNav from '@/components/ManagerNav';
 import sound from '@/lib/sound';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   Settings,
   Building2,
@@ -326,10 +327,10 @@ export default function RestaurantCMSPage() {
         </div>
 
         {loading ? (
-          <div className="py-24 flex flex-col items-center justify-center space-y-3 font-sans">
-            <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-500 text-xs font-medium">Loading restaurant branding settings...</p>
-          </div>
+          <RestaurantLoader
+            message="Loading CMS Branding & Showcase..."
+            subMessage="Fetching restaurant identity, visual banners, and dining reels"
+          />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Status Feedback Banners */}

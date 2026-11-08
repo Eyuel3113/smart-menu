@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { Transaction, PaymentMethod } from '@/lib/types';
 import ManagerNav from '@/components/ManagerNav';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   Receipt,
   Search,
@@ -323,10 +324,10 @@ export default function ManagerTransactionsPage() {
         {/* Main Content Card / Empty State or Transactions Table */}
         <div className="bg-white/80 dark:bg-[#0f1738]/90 backdrop-blur-md rounded-3xl border border-white/90 dark:border-blue-900/40 shadow-[0_6px_30px_rgba(0,0,0,0.03)] overflow-hidden">
           {loading ? (
-            <div className="py-24 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
-              <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <span className="font-semibold">Loading transaction records...</span>
-            </div>
+            <RestaurantLoader
+              message="Loading payment & settlement records..."
+              subMessage="Fetching Telebirr, CBE Birr, Awash Birr, and cash ledger audit history"
+            />
           ) : filteredTransactions.length === 0 ? (
             /* Empty State matching payments_settlements_light.png */
             <div className="py-20 px-6 flex flex-col items-center justify-center text-center">

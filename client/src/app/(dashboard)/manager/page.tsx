@@ -7,6 +7,7 @@ import { Order, Table, ServiceRequest } from '@/lib/types';
 import { useSocket } from '@/hooks/useSocket';
 import sound from '@/lib/sound';
 import ManagerNav from '@/components/ManagerNav';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   Zap,
   Clock,
@@ -571,7 +572,12 @@ export default function ManagerDashboardPage() {
         </div>
 
         {/* --- ORDER CARDS VIEW --- */}
-        {activeTab !== 'REQUESTS' && (
+        {loading ? (
+          <RestaurantLoader
+            message="Connecting to Live Ops Feed..."
+            subMessage="Real-time dining room orders, service calls, and kitchen pipeline"
+          />
+        ) : activeTab !== 'REQUESTS' ? (
           <>
             {displayedOrders.length === 0 ? (
               <div className="py-20 text-center rounded-3xl bg-white/80 dark:bg-[#0f1738]/60 border border-slate-200 dark:border-blue-900/40 space-y-4 shadow-sm">
@@ -752,10 +758,10 @@ export default function ManagerDashboardPage() {
               </div>
             )}
           </>
-        )}
+        ) : null}
 
         {/* --- SERVICE REQUESTS VIEW --- */}
-        {activeTab === 'REQUESTS' && (
+        {!loading && activeTab === 'REQUESTS' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {pendingRequests.length === 0 ? (
               <div className="col-span-full py-24 text-center rounded-3xl bg-white/80 dark:bg-[#0f1738]/60 border border-slate-200 dark:border-blue-900/40 space-y-3">

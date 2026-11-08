@@ -4,6 +4,7 @@ import React, { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import ManagerNav from '@/components/ManagerNav';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   BookOpen,
   Plus,
@@ -15,6 +16,7 @@ import {
   UtensilsCrossed,
   Layers,
   Image as ImageIcon,
+  GripVertical,
 } from 'lucide-react';
 
 interface CategoryItem {
@@ -65,6 +67,11 @@ export default function ManagerMenuPage() {
 
   const [deletingItem, setDeletingItem] = useState<MenuItemData | null>(null);
 
+  // Drag and Drop for Categories reordering
+  const [draggedCatIndex, setDraggedCatIndex] = useState<number | null>(null);
+  const [dragOverCatIndex, setDragOverCatIndex] = useState<number | null>(null);
+  const [isReorderingCategories, setIsReorderingCategories] = useState<boolean>(false);
+
   const [isPending, startTransition] = useTransition();
 
   const loadData = async () => {
@@ -95,6 +102,61 @@ export default function ManagerMenuPage() {
   }, []);
 
   // --- Category Handlers ---
+  const handleCategoryDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedCatIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleCategoryDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverCatIndex !== index) {
+      setDragOverCatIndex(index);
+    }
+  };
+
+  const handleCategoryDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedCatIndex === null || draggedCatIndex === dropIndex) {
+      setDraggedCatIndex(null);
+      setDragOverCatIndex(null);
+      return;
+    }
+
+    const reordered = [...categories];
+    const [moved] = reordered.splice(draggedCatIndex, 1);
+    reordered.splice(dropIndex, 0, moved);
+
+    // Optimistically update order
+    const updated = reordered.map((cat, idx) => ({
+      ...cat,
+      sortOrder: idx + 1,
+    }));
+    setCategories(updated);
+    setDraggedCatIndex(null);
+    setDragOverCatIndex(null);
+
+    // Persist new sort order to backend
+    try {
+      setIsReorderingCategories(true);
+      await Promise.all(
+        updated.map((cat, idx) =>
+          api.menu.updateCategory(cat.id, { sortOrder: idx + 1 })
+        )
+      );
+    } catch (err) {
+      console.error('Failed to save category reordering:', err);
+    } finally {
+      setIsReorderingCategories(false);
+    }
+  };
+
+  const handleCategoryDragEnd = () => {
+    setDraggedCatIndex(null);
+    setDragOverCatIndex(null);
+  };
+
   const openAddCategory = () => {
     setEditingCategory(null);
     setCategoryName('');
@@ -286,10 +348,19 @@ export default function ManagerMenuPage() {
           {/* LEFT: Category Sidebar */}
           <div className="lg:col-span-1 rounded-3xl bg-white/80 dark:bg-[#0f1738]/90 backdrop-blur-md border border-slate-200/80 dark:border-blue-900/40 p-4 space-y-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                Categories ({categories.length})
-              </span>
+              <div>
+                <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  Categories ({categories.length})
+                </span>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
+                  {isReorderingCategories ? (
+                    <span className="text-blue-500 animate-pulse font-semibold">Saving display order...</span>
+                  ) : (
+                    'Drag rows to reorder display sequence'
+                  )}
+                </p>
+              </div>
               <button
                 onClick={openAddCategory}
                 className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition cursor-pointer"
@@ -299,7 +370,7 @@ export default function ManagerMenuPage() {
               </button>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {/* All Dishes Tab */}
               <button
                 onClick={() => setSelectedCategoryId('ALL')}
@@ -321,27 +392,50 @@ export default function ManagerMenuPage() {
                 </span>
               </button>
 
-              {/* Categorized List */}
-              {categories.map((cat) => {
+              {/* Draggable Categorized List */}
+              {categories.map((cat, index) => {
                 const count = items.filter((i) => i.categoryId === cat.id).length;
                 const isSelected = selectedCategoryId === cat.id;
+                const isDragging = draggedCatIndex === index;
+                const isDragOver = dragOverCatIndex === index;
 
                 return (
                   <div
                     key={cat.id}
-                    className={`group rounded-xl transition flex items-center justify-between px-2 cursor-pointer ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 font-bold'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 font-semibold'
+                    draggable
+                    onDragStart={(e) => handleCategoryDragStart(e, index)}
+                    onDragOver={(e) => handleCategoryDragOver(e, index)}
+                    onDrop={(e) => handleCategoryDrop(e, index)}
+                    onDragEnd={handleCategoryDragEnd}
+                    className={`group rounded-xl transition flex items-center justify-between px-2 cursor-grab active:cursor-grabbing border ${
+                      isDragging
+                        ? 'opacity-40 scale-[0.98] border-dashed border-blue-400 bg-blue-50/50 dark:bg-blue-950/30'
+                        : isDragOver
+                        ? 'border-t-2 border-t-blue-500 border-slate-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-900/30'
+                        : isSelected
+                        ? 'border-transparent bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 font-bold'
+                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 font-semibold'
                     }`}
                   >
+                    {/* Grip Drag Handle */}
+                    <div
+                      className={`py-2 pl-0.5 pr-1.5 transition ${
+                        isSelected
+                          ? 'text-white/70 hover:text-white'
+                          : 'text-slate-400 hover:text-blue-600 dark:text-slate-500'
+                      }`}
+                      title="Drag to rearrange order"
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </div>
+
                     <button
                       onClick={() => setSelectedCategoryId(cat.id)}
                       className="flex-1 py-2.5 px-1 text-left text-xs truncate flex items-center justify-between pr-2 cursor-pointer"
                     >
                       <span className="truncate">{cat.name}</span>
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-2 ${
                           isSelected
                             ? 'bg-white/20 text-white'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -410,10 +504,10 @@ export default function ManagerMenuPage() {
 
             {/* Dishes Grid */}
             {loading ? (
-              <div className="py-24 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
-                <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                <span className="font-semibold">Loading menu items...</span>
-              </div>
+              <RestaurantLoader
+                message="Loading Menu Catalog..."
+                subMessage="Fetching appetizers, traditional mains, desserts, and beverage categories"
+              />
             ) : filteredItems.length === 0 ? (
               <div className="py-20 text-center rounded-3xl bg-white/80 dark:bg-[#0f1738]/60 border border-slate-200 dark:border-blue-900/40 space-y-3">
                 <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center text-blue-600">

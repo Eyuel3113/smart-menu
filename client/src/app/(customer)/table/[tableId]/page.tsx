@@ -9,6 +9,7 @@ import { CartProvider, useCart } from '@/context/CartContext';
 import sound from '@/lib/sound';
 import ReelsModal, { ReelItem } from '@/components/customer/ReelsModal';
 import PaymentModal, { PaymentProvider } from '@/components/customer/PaymentModal';
+import RestaurantLoader from '@/components/ui/RestaurantLoader';
 import {
   BellRing,
   Receipt,
@@ -247,8 +248,8 @@ function CustomerMenuContent() {
     (typeof rawTableId === 'string'
       ? rawTableId
       : Array.isArray(rawTableId)
-      ? rawTableId[0]
-      : '') || 'tbl-uuid-01';
+        ? rawTableId[0]
+        : '') || 'tbl-uuid-01';
 
   const token = searchParams ? searchParams.get('token') : null;
   const initialViewParam = searchParams ? searchParams.get('view') : null;
@@ -257,8 +258,8 @@ function CustomerMenuContent() {
     typeof tableId === 'string' && tableId.startsWith('tbl-uuid-')
       ? parseInt(tableId.replace('tbl-uuid-', ''), 10) || 1
       : !isNaN(Number(tableId))
-      ? Number(tableId) || 1
-      : 1;
+        ? Number(tableId) || 1
+        : 1;
 
   const {
     items: cartItems,
@@ -323,14 +324,14 @@ function CustomerMenuContent() {
         const raw = localStorage.getItem('smart_menu_experience_settings');
         if (raw) local = JSON.parse(raw);
       }
-    } catch {}
+    } catch { }
 
     const showReviews =
       tableData?.restaurant?.showReviewShower !== undefined
         ? tableData.restaurant.showReviewShower
         : local?.showReviewShower !== undefined
-        ? local.showReviewShower
-        : true;
+          ? local.showReviewShower
+          : true;
 
     const timing =
       tableData?.restaurant?.paymentTiming ||
@@ -352,7 +353,7 @@ function CustomerMenuContent() {
           localStorage.getItem(`smart_menu_active_order_${tableId}`);
         if (storedOrder) setActiveOrderId(storedOrder);
       }
-    } catch {}
+    } catch { }
 
     async function checkActiveOrders() {
       try {
@@ -365,7 +366,7 @@ function CustomerMenuContent() {
             setActiveOrderId(active.id);
             try {
               sessionStorage.setItem(`smart_menu_active_order_${tableId}`, active.id);
-            } catch {}
+            } catch { }
           }
         }
       } catch {
@@ -410,7 +411,7 @@ function CustomerMenuContent() {
         }
         window.history.replaceState({}, '', url.toString());
       }
-    } catch {}
+    } catch { }
   };
 
   const handleOpenMenu = () => {
@@ -420,7 +421,7 @@ function CustomerMenuContent() {
     syncBrowserUrl('menu');
     try {
       sound.playSuccessDing();
-    } catch {}
+    } catch { }
   };
 
   const handleBackToHub = () => {
@@ -465,7 +466,7 @@ function CustomerMenuContent() {
 
     if (!foundItem) {
       foundItem = {
-        id: `reel-dish-${dishName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        id: `3f7b0170-2f27-4b5e-9541-ede3910dd7cd`,
         restaurantId: tableData?.restaurant?.id || 'rest-addis-001',
         categoryId: 'cat-mains',
         name: dishName,
@@ -479,7 +480,7 @@ function CustomerMenuContent() {
     addItem(foundItem);
     try {
       sound.playSuccessDing();
-    } catch {}
+    } catch { }
 
     handleCloseReels();
     handleOpenMenu();
@@ -509,7 +510,7 @@ function CustomerMenuContent() {
         document.documentElement.style.backgroundColor = '#090d1e';
         try {
           document.documentElement.style.colorScheme = 'dark';
-        } catch {}
+        } catch { }
         document.body.style.backgroundColor = '#090d1e';
 
         let themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -533,7 +534,7 @@ function CustomerMenuContent() {
             document.documentElement.style.backgroundColor = origHtmlBg;
             document.documentElement.style.colorScheme = origHtmlColorScheme;
             document.body.style.backgroundColor = origBodyBg;
-          } catch {}
+          } catch { }
         };
       }
     } catch {
@@ -573,8 +574,8 @@ function CustomerMenuContent() {
             const tableNumParsed = tableId.startsWith('tbl-uuid-')
               ? parseInt(tableId.replace('tbl-uuid-', ''), 10) || 1
               : !isNaN(Number(tableId))
-              ? Number(tableId)
-              : 1;
+                ? Number(tableId)
+                : 1;
 
             validation = {
               sessionToken: 'dev-session-token-fallback',
@@ -644,7 +645,7 @@ function CustomerMenuContent() {
       setServiceAlert({ message: 'Waiter has been notified and is on the way!', type: 'waiter' });
       try {
         sound.playSuccessDing();
-      } catch {}
+      } catch { }
       setTimeout(() => setServiceAlert(null), 5000);
     } catch {
       setServiceAlert({ message: 'Waiter summoned to Table #' + (tableData?.table.tableNumber || 1), type: 'waiter' });
@@ -661,7 +662,7 @@ function CustomerMenuContent() {
           sessionStorage.getItem('smart_menu_customer_token') ||
           '';
       }
-    } catch {}
+    } catch { }
 
     router.push(`/table/${tableId}/track${activeToken ? `?token=${encodeURIComponent(activeToken)}` : ''}`);
   };
@@ -696,7 +697,7 @@ function CustomerMenuContent() {
               sessionStorage.getItem('smart_menu_customer_token') ||
               '';
           }
-        } catch {}
+        } catch { }
 
         const tokenQuery = activeToken ? `&token=${encodeURIComponent(activeToken)}` : '';
         const paidQuery = paidNote ? '&paid=true' : '';
@@ -750,12 +751,11 @@ function CustomerMenuContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#090d1e] flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans">
-        <div className="w-12 h-12 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-400 font-medium text-sm">
-          Connecting to your dining table...
-        </p>
-      </div>
+      <RestaurantLoader
+        variant="fullscreen"
+        message="Connecting to your dining table..."
+        subMessage="Setting up real-time table session & live culinary menu"
+      />
     );
   }
 
@@ -987,11 +987,10 @@ function CustomerMenuContent() {
                           className="p-1 transition active:opacity-75 cursor-pointer"
                         >
                           <Star
-                            className={`w-7 h-7 ${
-                              star <= reviewRating
+                            className={`w-7 h-7 ${star <= reviewRating
                                 ? 'text-amber-400 fill-amber-400'
                                 : 'text-slate-200 fill-slate-100'
-                            }`}
+                              }`}
                           />
                         </button>
                       ))}
@@ -1111,11 +1110,10 @@ function CustomerMenuContent() {
                 key={cat.id}
                 type="button"
                 onClick={() => scrollToCategory(cat.id)}
-                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer flex items-center gap-1.5 shrink-0 active:opacity-75 ${
-                  isActive
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 cursor-pointer flex items-center gap-1.5 shrink-0 active:opacity-75 ${isActive
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
                     : 'bg-white/90 border border-slate-200/80 text-slate-600 hover:text-slate-900 hover:bg-white shadow-2xs'
-                }`}
+                  }`}
               >
                 {isActive && <Utensils className="w-3.5 h-3.5" />}
                 <span>{cat.name}</span>
@@ -1308,11 +1306,10 @@ function CustomerMenuContent() {
             type="button"
             disabled={totalCount === 0}
             onClick={() => setIsCartOpen(true)}
-            className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-1.5 transition active:opacity-75 ${
-              totalCount === 0
+            className={`px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-1.5 transition active:opacity-75 ${totalCount === 0
                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/25 cursor-pointer'
-            }`}
+              }`}
           >
             <span>Order</span>
             <ChevronRight className="w-4 h-4 stroke-[2.5]" />
@@ -1463,11 +1460,10 @@ function CustomerMenuContent() {
                 type="button"
                 disabled={isOrdering || cartItems.length === 0}
                 onClick={handleCheckout}
-                className={`w-full py-4 rounded-xl text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl active:opacity-75 transition cursor-pointer disabled:bg-slate-300 ${
-                  experienceSettings.paymentTiming === 'PRE_ORDER'
+                className={`w-full py-4 rounded-xl text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl active:opacity-75 transition cursor-pointer disabled:bg-slate-300 ${experienceSettings.paymentTiming === 'PRE_ORDER'
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20'
                     : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
-                }`}
+                  }`}
               >
                 {isOrdering ? (
                   <>
@@ -1519,8 +1515,8 @@ function CustomerTableWrapper() {
     (typeof rawTableId === 'string'
       ? rawTableId
       : Array.isArray(rawTableId)
-      ? rawTableId[0]
-      : '') || 'tbl-uuid-01';
+        ? rawTableId[0]
+        : '') || 'tbl-uuid-01';
 
   return (
     <CartProvider tableId={tableId}>
@@ -1533,12 +1529,11 @@ export default function CustomerTablePage() {
   return (
     <React.Suspense
       fallback={
-        <div className="min-h-screen bg-[#090d1e] flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans">
-          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-slate-400 font-medium text-xs">
-            Connecting to table...
-          </p>
-        </div>
+        <RestaurantLoader
+          variant="fullscreen"
+          message="Connecting to table..."
+          subMessage="Loading contactless ordering experience"
+        />
       }
     >
       <CustomerTableWrapper />
