@@ -229,30 +229,12 @@ export default function PaymentModal({
                       : 'bg-[#141b2b] border-slate-800/80 hover:border-slate-700'
                   }`}
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-md mb-2 p-1.5">
-                    {/* Telebirr Logo */}
-                    <svg viewBox="0 0 48 48" className="w-9 h-9" fill="none">
-                      <path
-                        d="M24 6C17 6 12 11 12 18C12 25 20 30 24 30C28 30 36 34 36 41C36 47 30 48 24 48"
-                        stroke="#0072CE"
-                        strokeWidth="5"
-                        strokeLinecap="round"
-                      />
-                      <circle cx="24" cy="18" r="4.5" fill="#0072CE" />
-                      <circle cx="36" cy="41" r="3.5" fill="#00A3E0" />
-                      <path
-                        d="M32 10L39 17"
-                        stroke="#00A3E0"
-                        strokeWidth="3.5"
-                        strokeLinecap="round"
-                      />
-                      <path
-                        d="M9 34L16 41"
-                        stroke="#00A3E0"
-                        strokeWidth="3.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-md mb-2 p-1.5 overflow-hidden">
+                    <img
+                      src="/images/payments/telebirr.jpg"
+                      alt="Telebirr"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <span className="text-xs font-bold text-slate-200">Telebirr</span>
                 </button>
@@ -267,25 +249,12 @@ export default function PaymentModal({
                       : 'bg-[#141b2b] border-slate-800/80 hover:border-slate-700'
                   }`}
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-md mb-2 p-1.5">
-                    {/* CBE Birr Emblem */}
-                    <svg viewBox="0 0 48 48" className="w-9 h-9" fill="none">
-                      <circle cx="24" cy="24" r="21" fill="#7C2D12" stroke="#D97706" strokeWidth="2" />
-                      <circle cx="24" cy="24" r="16" fill="#F59E0B" opacity="0.25" />
-                      <path
-                        d="M24 11C16.8 11 11 16.8 11 24C11 31.2 16.8 37 24 37C31.2 37 37 31.2 37 24"
-                        stroke="#FBBF24"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                      />
-                      <path
-                        d="M20 20C20 17.5 22 16 24 16C26 16 28 17.5 28 20C28 23 24 24.5 24 28V29"
-                        stroke="#FEF3C7"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                      />
-                      <circle cx="24" cy="33" r="1.5" fill="#FEF3C7" />
-                    </svg>
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-md mb-2 p-1.5 overflow-hidden">
+                    <img
+                      src="/images/payments/cbe.jpg"
+                      alt="CBE Birr"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <span className="text-xs font-bold text-slate-200">CBE Birr</span>
                 </button>
@@ -300,15 +269,12 @@ export default function PaymentModal({
                       : 'bg-[#141b2b] border-slate-800/80 hover:border-slate-700'
                   }`}
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-md mb-2 p-1.5">
-                    {/* Awash Bank Globe */}
-                    <svg viewBox="0 0 48 48" className="w-9 h-9" fill="none">
-                      <circle cx="24" cy="24" r="21" fill="#0F172A" />
-                      <path d="M12 19C16 13 32 13 36 19C32 22 16 22 12 19Z" fill="#F97316" />
-                      <path d="M10 25C16 22 32 22 38 25C34 28 14 28 10 25Z" fill="#EA580C" />
-                      <path d="M12 31C18 29 30 29 36 31C32 34 16 34 12 31Z" fill="#1E3A8A" />
-                      <path d="M16 36C20 35 28 35 32 36C29 38 19 38 16 36Z" fill="#2563EB" />
-                    </svg>
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-md mb-2 p-1.5 overflow-hidden">
+                    <img
+                      src="/images/payments/awash.png"
+                      alt="Awash Birr"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <span className="text-xs font-bold text-slate-200">Awash Birr</span>
                 </button>

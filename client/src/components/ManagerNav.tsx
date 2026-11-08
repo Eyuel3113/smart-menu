@@ -22,6 +22,9 @@ import {
   Moon,
   Boxes,
   CheckCircle2,
+  Sparkles,
+  Palette,
+  Check,
 } from 'lucide-react';
 
 interface ManagerNavProps {
@@ -29,12 +32,15 @@ interface ManagerNavProps {
   title?: string;
 }
 
+export type SupportedLocale = 'en' | 'am' | 'om' | 'ar' | 'ti';
+
 export default function ManagerNav({ onRefresh }: ManagerNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme, isDark } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [currentLocale, setCurrentLocale] = useState<'en' | 'am' | 'om'>('en');
+  const [localeDropdownOpen, setLocaleDropdownOpen] = useState(false);
+  const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('en');
   const [localeNotice, setLocaleNotice] = useState<string | null>(null);
 
   const handleLogout = () => {
@@ -42,18 +48,19 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
     router.push('/login');
   };
 
-  const locales: Record<'en' | 'am' | 'om', { label: string; name: string }> = {
-    en: { label: 'EN', name: 'English (ET)' },
-    am: { label: 'አማ', name: 'Amharic (አማርኛ)' },
-    om: { label: 'OM', name: 'Afaan Oromoo' },
-  };
+  const languagesList: { id: SupportedLocale; name: string; nativeName: string; flag: string }[] = [
+    { id: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
+    { id: 'am', name: 'Amharic', nativeName: 'አማርኛ', flag: '🇪🇹' },
+    { id: 'om', name: 'Oromic', nativeName: 'Afaan Oromoo', flag: '🇪🇹' },
+    { id: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+    { id: 'ti', name: 'Tigrinya', nativeName: 'ትግርኛ', flag: '🇪🇹' },
+  ];
 
-  const handleToggleLocale = () => {
-    const order: Array<'en' | 'am' | 'om'> = ['en', 'am', 'om'];
-    const nextIdx = (order.indexOf(currentLocale) + 1) % order.length;
-    const nextLocale = order[nextIdx];
-    setCurrentLocale(nextLocale);
-    setLocaleNotice(`Interface language set to ${locales[nextLocale].name}`);
+  const handleSelectLocale = (langId: SupportedLocale) => {
+    setCurrentLocale(langId);
+    setLocaleDropdownOpen(false);
+    const chosen = languagesList.find((l) => l.id === langId);
+    setLocaleNotice(`Interface language set to ${chosen?.nativeName} (${chosen?.name})`);
     setTimeout(() => setLocaleNotice(null), 3000);
   };
 
@@ -65,7 +72,7 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
     { href: '/manager/transactions', label: 'Payments', icon: Receipt },
     { href: '/kitchen', label: 'Kitchen KDS', icon: UtensilsCrossed },
     { href: '/manager/analytics', label: 'Analytics', icon: BarChart3 },
-    { href: '/manager/settings', label: 'Settings', icon: Settings },
+    { href: '/manager/cms', label: 'CMS', icon: Palette },
   ];
 
   return (
@@ -155,21 +162,64 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
                 </span>
               </button>
 
-              {/* Localization Toggle */}
-              <button
-                type="button"
-                onClick={handleToggleLocale}
-                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-slate-700 dark:text-blue-200 hover:bg-slate-100 dark:hover:bg-blue-900/30 transition cursor-pointer"
-                title="Switch Language"
-              >
-                <div className="flex items-center gap-2">
-                  <Languages className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Localization</span>
-                </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">
-                  {locales[currentLocale].label}
-                </span>
-              </button>
+              {/* Localization Dropdown Selector */}
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setLocaleDropdownOpen(!localeDropdownOpen)}
+                  className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-slate-700 dark:text-blue-200 hover:bg-slate-100 dark:hover:bg-blue-900/30 transition cursor-pointer"
+                  title="Choose Language"
+                >
+                  <div className="flex items-center gap-2">
+                    <Languages className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Localization</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">
+                      {languagesList.find((l) => l.id === currentLocale)?.nativeName}
+                    </span>
+                    <ChevronDown
+                      className={`w-3 h-3 text-slate-400 transition-transform ${
+                        localeDropdownOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {/* Expanded Language Options Dropdown */}
+                {localeDropdownOpen && (
+                  <div className="p-1 rounded-xl bg-slate-50 dark:bg-blue-950/50 border border-slate-200/80 dark:border-blue-800/40 space-y-0.5 animate-in fade-in">
+                    {languagesList.map((lang) => {
+                      const isSelected = currentLocale === lang.id;
+                      return (
+                        <button
+                          key={lang.id}
+                          type="button"
+                          onClick={() => handleSelectLocale(lang.id)}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-600 text-white font-bold shadow-xs'
+                              : 'text-slate-700 dark:text-blue-200 hover:bg-slate-200/70 dark:hover:bg-blue-900/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs">{lang.flag}</span>
+                            <span className="font-semibold">{lang.nativeName}</span>
+                            <span
+                              className={`text-[10px] ${
+                                isSelected ? 'text-blue-100' : 'text-slate-400 dark:text-blue-300/60'
+                              }`}
+                            >
+                              ({lang.name})
+                            </span>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {localeNotice && (
                 <div className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/40 text-[10px] text-blue-700 dark:text-blue-300 font-semibold animate-in fade-in">
@@ -177,13 +227,17 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
                 </div>
               )}
 
+              {/* Settings (After Localization) - Opens Experience & Order Policy */}
               <Link
                 href="/manager/settings"
-                className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-700 dark:text-blue-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-blue-900/30 flex items-center gap-2 transition"
+                className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-700 dark:text-blue-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-blue-900/30 flex items-center justify-between transition"
                 onClick={() => setProfileOpen(false)}
               >
-                <Settings className="w-3.5 h-3.5 text-blue-500" />
-                <span>Settings</span>
+                <div className="flex items-center gap-2">
+                  <Settings className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Settings</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-medium">Policy &amp; Flow</span>
               </Link>
 
               <button
