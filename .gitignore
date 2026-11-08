@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+.pnp
+.pnp.js
+
+# Environment variables & secrets
+.env
+.env.*
+*.env
+!.env.example
+!client/.env.example
+!server/.env.example
+
+# Next.js build output
+client/.next/
+client/out/
+client/build/
+.next/
+out/
+build/
+
+# Server build output
+server/dist/
+dist/
+
+# TypeScript & logs
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Vercel
+.vercel
+
+# OS / Editor
+.DS_Store
+*.pem
+Thumbs.db
+.vscode/
+.idea/

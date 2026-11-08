@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: smart-menu-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install && npm run prisma:generate && npm run build
+    startCommand: npm run prisma:push && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CUSTOMER_JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
