@@ -197,6 +197,16 @@ export default function OrderTrackPage() {
     const cleanupConcluded = on<{ tableId: string }>('table:session_concluded', (data) => {
       if (data.tableId === tableId) {
         setSessionCompleted(true);
+        try {
+          sessionStorage.removeItem('smart_menu_cart_items');
+          localStorage.removeItem('smart_menu_cart_items');
+          sessionStorage.removeItem(`smart_menu_active_order_${tableId}`);
+          localStorage.removeItem(`smart_menu_active_order_${tableId}`);
+        } catch {}
+        setTimeout(() => {
+          const tkn = searchParams.get('token') || '';
+          router.push(`/table/${tableId}${tkn ? `?token=${encodeURIComponent(tkn)}` : ''}`);
+        }, 1500);
       }
     });
 
@@ -863,6 +873,10 @@ export default function OrderTrackPage() {
         grandTotal={grandTotal}
         itemCount={activeOrders.reduce((sum, o) => sum + (o.items?.length || 0), 0)}
         onConfirmPayment={handlePaymentSubmit}
+        onDoneReturnToMenu={() => {
+          const tkn = searchParams.get('token') || '';
+          router.push(`/table/${tableId}${tkn ? `?token=${encodeURIComponent(tkn)}` : ''}`);
+        }}
       />
     </div>
   );

@@ -25,12 +25,21 @@ import {
   Radio,
 } from 'lucide-react';
 
+export interface PaidAlert {
+  tableId: string;
+  tableNumber: number;
+  amount: number;
+  referenceNote?: string | null;
+  paidAt: string;
+}
+
 export default function ManagerDashboardPage() {
   const router = useRouter();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [paidAlerts, setPaidAlerts] = useState<PaidAlert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'PENDING' | 'PREPARING' | 'READY' | 'REQUESTS'>('PENDING');
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -58,6 +67,18 @@ export default function ManagerDashboardPage() {
       setOrders(ordersData || []);
       setTables(tablesData || []);
       setRequests(requestsData || []);
+
+      // Derive any active paid pending tables
+      const currentPaid = (tablesData || [])
+        .filter((t: Table) => t.status === 'PAID_PENDING')
+        .map((t: Table) => ({
+          tableId: t.id,
+          tableNumber: t.tableNumber,
+          amount: (t.orders || []).reduce((sum: number, o: any) => sum + Number(o.totalAmount || 0), 0),
+          referenceNote: 'Mobile USSD Payment',
+          paidAt: new Date().toISOString(),
+        }));
+      setPaidAlerts(currentPaid);
     } catch (err) {
       console.warn('Failed to load manager live ops:', err);
     } finally {
@@ -112,6 +133,26 @@ export default function ManagerDashboardPage() {
       setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     });
 
+    const cleanupPaidPending = on<{ table: Table; transaction: any }>('table:paid_pending', ({ table, transaction }) => {
+      try {
+        sound.playSuccessDing();
+      } catch {}
+      setPaidAlerts((prev) => {
+        if (prev.some((a) => a.tableId === table.id)) return prev;
+        return [
+          {
+            tableId: table.id,
+            tableNumber: table.tableNumber,
+            amount: transaction?.amount || 0,
+            referenceNote: transaction?.referenceNote || 'Direct Mobile USSD Payment',
+            paidAt: new Date().toISOString(),
+          },
+          ...prev,
+        ];
+      });
+      setTables((prev) => prev.map((t) => (t.id === table.id ? { ...t, status: 'PAID_PENDING' } : t)));
+    });
+
     return () => {
       cleanupPlaced();
       cleanupNew();
@@ -123,8 +164,32 @@ export default function ManagerDashboardPage() {
       cleanupRejected();
       cleanupServiceReq();
       cleanupServiceUpdate();
+      cleanupPaidPending();
     };
   }, [on]);
+
+  // One-click handler: Admin confirms table payment, clears active orders to history
+  const handleClearPaidSession = (tableId: string, tableNumber: number) => {
+    try {
+      sound.playSuccessDing();
+    } catch {}
+
+    // Immediately remove paid alert card from Live Ops
+    setPaidAlerts((prev) => prev.filter((a) => a.tableId !== tableId));
+    // Remove active orders for this table from the active queue
+    setOrders((prev) => prev.filter((o) => o.tableId !== tableId));
+
+    setActionNotice(`Table #${tableNumber} session cleared and saved to history. Table remains marked as PAID.`);
+    setTimeout(() => setActionNotice(null), 4000);
+
+    startActionTransition(async () => {
+      try {
+        await api.tables.approveSettlement(tableId);
+      } catch (err: any) {
+        console.error('Failed to clear table session:', err);
+      }
+    });
+  };
 
   // Order Actions
   const handleAcceptOrder = (orderId: string, shortId: string) => {
@@ -296,6 +361,53 @@ export default function ManagerDashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* --- PAID TABLE SETTLEMENT ALERTS --- */}
+        {paidAlerts.length > 0 && (
+          <div className="space-y-3">
+            {paidAlerts.map((alert) => (
+              <div
+                key={alert.tableId}
+                className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/15 border-2 border-emerald-500/50 dark:border-emerald-500/60 shadow-lg shadow-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3 duration-300"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-md shadow-emerald-600/30 shrink-0 text-base">
+                    T{alert.tableNumber}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                        Table #{alert.tableNumber} Bill Paid
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-600 text-white uppercase tracking-wider">
+                        PAID
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-emerald-200/80 font-medium mt-0.5">
+                      {alert.amount > 0 && (
+                        <strong className="text-emerald-600 dark:text-emerald-300 font-mono font-bold text-sm mr-2">
+                          {alert.amount.toLocaleString()} ETB
+                        </strong>
+                      )}
+                      <span>{alert.referenceNote || 'Direct Mobile USSD Payment'} &bull; Customer completed payment</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleClearPaidSession(alert.tableId, alert.tableNumber)}
+                    className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>OK &bull; Clear Session</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Action Notice Alert */}
         {actionNotice && (

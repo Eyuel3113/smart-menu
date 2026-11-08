@@ -632,10 +632,10 @@ export class TableService {
         },
       });
 
-      // 4. Set table to CLEANING
+      // 4. Keep table status as PAID_PENDING (PAID) until admin explicitly changes it to AVAILABLE
       const updatedTable = await tx.table.update({
         where: { id: tableId },
-        data: { status: TableStatus.CLEANING },
+        data: { status: TableStatus.PAID_PENDING },
         include: {
           area: { select: { id: true, name: true } },
         },

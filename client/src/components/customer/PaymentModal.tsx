@@ -18,6 +18,7 @@ interface PaymentModalProps {
     phoneNumber: string;
     grandTotal: number;
   }) => Promise<void>;
+  onDoneReturnToMenu?: () => void;
 }
 
 export default function PaymentModal({
@@ -28,11 +29,29 @@ export default function PaymentModal({
   grandTotal,
   itemCount,
   onConfirmPayment,
+  onDoneReturnToMenu,
 }: PaymentModalProps) {
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>('telebirr');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [ussdDispatched, setUssdDispatched] = useState<boolean>(false);
+
+  const handleDoneAndReset = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('smart_menu_cart_items');
+        localStorage.removeItem('smart_menu_cart_items');
+        sessionStorage.removeItem(`smart_menu_active_order_${tableId}`);
+        localStorage.removeItem(`smart_menu_active_order_${tableId}`);
+      }
+    } catch {}
+
+    if (onDoneReturnToMenu) {
+      onDoneReturnToMenu();
+    } else {
+      window.location.href = `/table/${tableId}`;
+    }
+  };
 
   // Validate Ethiopian phone number: 9 digits starting with 9 or 7 (or 09.../07...)
   const cleanPhone = useMemo(() => {
@@ -138,10 +157,11 @@ export default function PaymentModal({
 
             <button
               type="button"
-              onClick={onClose}
-              className="w-full py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+              onClick={handleDoneAndReset}
+              className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm uppercase tracking-wider transition cursor-pointer shadow-lg shadow-emerald-950/40 active:scale-95 flex items-center justify-center gap-2"
             >
-              Done & Return to Session
+              <Check className="w-4 h-4 stroke-[3]" />
+              <span>Done &bull; Return to Table Home</span>
             </button>
           </div>
         ) : (

@@ -14,6 +14,7 @@ import {
   MapPin,
   Trees,
   Sparkles,
+  Check,
 } from 'lucide-react';
 
 interface TableCardProps {
@@ -76,9 +77,9 @@ export default function TableCard({
     darkCardTheme =
       'dark:bg-[#130d22]/90 dark:border-2 dark:border-red-500/70 dark:shadow-[0_0_20px_rgba(239,68,68,0.25)] dark:hover:shadow-[0_0_28px_rgba(239,68,68,0.35)]';
   } else if (isPaidPending) {
-    lightBorder = 'border-purple-400/80 hover:border-purple-500';
+    lightBorder = 'border-emerald-400 hover:border-emerald-500';
     darkCardTheme =
-      'dark:bg-[#190d2e]/90 dark:border-2 dark:border-purple-500/80 dark:shadow-[0_0_24px_rgba(168,85,247,0.3)] dark:animate-pulse';
+      'dark:bg-[#071d18]/90 dark:border-2 dark:border-emerald-500/80 dark:shadow-[0_0_24px_rgba(16,185,129,0.3)]';
   } else if (isBill) {
     lightBorder = 'border-amber-400/80 hover:border-amber-500';
     darkCardTheme =
@@ -126,9 +127,9 @@ export default function TableCard({
           </span>
         )}
         {isPaidPending && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-950/80 dark:border-purple-500/50 dark:text-purple-300 animate-pulse">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping" />
-            Paid • Review
+          <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-black bg-emerald-100 border border-emerald-300 text-emerald-800 dark:bg-emerald-950/80 dark:border-emerald-500/50 dark:text-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            PAID
           </span>
         )}
         {isBill && (
@@ -168,13 +169,30 @@ export default function TableCard({
         </div>
       </div>
 
-      {/* --- BOTTOM: ZONE TAG & ARROW BUTTON --- */}
-      <div className="pt-2 border-t border-slate-100 dark:border-blue-900/30 flex items-center justify-between relative">
+      {/* --- BOTTOM: ZONE TAG, ACTION BUTTON & ARROW BUTTON --- */}
+      <div className="pt-2 border-t border-slate-100 dark:border-blue-900/30 flex items-center justify-between relative gap-2">
         {/* Floor Zone Tag */}
-        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-blue-200/80 font-medium truncate max-w-[110px]">
+        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-blue-200/80 font-medium truncate max-w-[95px]">
           {getZoneIcon(table.area?.name)}
           <span className="truncate">{table.area?.name || 'Main Dining Hall'}</span>
         </div>
+
+        {/* If table is marked as PAID, direct 1-click button to reset to AVAILABLE */}
+        {isPaidPending && (
+          <button
+            type="button"
+            disabled={actionPending}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChangeStatus(table.id, 'AVAILABLE');
+            }}
+            className="px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+            title="Reset table to Available for new guests"
+          >
+            <Check className="w-3 h-3 stroke-[3]" />
+            <span>Make Available</span>
+          </button>
+        )}
 
         {/* Circular Arrow Button with Popover */}
         <div className="relative arrow-menu-container">
