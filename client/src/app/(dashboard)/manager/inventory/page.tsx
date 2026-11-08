@@ -1449,3 +1449,4 @@ export default function ManagerInventoryPage() {
     </div>
   );
 }
+

@@ -31,6 +31,9 @@ export interface PaidAlert {
   amount: number;
   referenceNote?: string | null;
   paidAt: string;
+  items?: { name: string; quantity: number; price: number }[];
+  orderId?: string;
+  areaTag?: string;
 }
 
 export default function ManagerDashboardPage() {
@@ -68,16 +71,34 @@ export default function ManagerDashboardPage() {
       setTables(tablesData || []);
       setRequests(requestsData || []);
 
-      // Derive any active paid pending tables
+      // Derive any active paid pending tables with full item details
       const currentPaid = (tablesData || [])
         .filter((t: Table) => t.status === 'PAID_PENDING')
-        .map((t: Table) => ({
-          tableId: t.id,
-          tableNumber: t.tableNumber,
-          amount: (t.orders || []).reduce((sum: number, o: any) => sum + Number(o.totalAmount || 0), 0),
-          referenceNote: 'Mobile USSD Payment',
-          paidAt: new Date().toISOString(),
-        }));
+        .map((t: Table) => {
+          const tableOrders = (ordersData || []).filter((o: Order) => o.tableId === t.id);
+          const allItems = tableOrders.flatMap((o: Order) =>
+            (o.items || []).map((i) => ({
+              name: i.menuItem?.name || 'Dish',
+              quantity: i.quantity,
+              price: Number(i.unitPrice) * i.quantity,
+            }))
+          );
+          const totalAmount = tableOrders.reduce(
+            (sum: number, o: Order) => sum + Number(o.totalAmount || 0),
+            0
+          );
+
+          return {
+            tableId: t.id,
+            tableNumber: t.tableNumber,
+            amount: totalAmount,
+            referenceNote: 'Direct Mobile USSD (Telebirr / CBE Birr)',
+            paidAt: new Date().toISOString(),
+            items: allItems,
+            orderId: tableOrders[0]?.id || t.id,
+            areaTag: t.area?.name || 'Main Dining',
+          };
+        });
       setPaidAlerts(currentPaid);
     } catch (err) {
       console.warn('Failed to load manager live ops:', err);
@@ -137,15 +158,32 @@ export default function ManagerDashboardPage() {
       try {
         sound.playSuccessDing();
       } catch {}
+
+      // Find current orders for this table
+      const tableOrders = orders.filter((o) => o.tableId === table.id);
+      const allItems = tableOrders.flatMap((o) =>
+        (o.items || []).map((i) => ({
+          name: i.menuItem?.name || 'Dish',
+          quantity: i.quantity,
+          price: Number(i.unitPrice) * i.quantity,
+        }))
+      );
+      const totalAmount =
+        transaction?.amount ||
+        tableOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
       setPaidAlerts((prev) => {
         if (prev.some((a) => a.tableId === table.id)) return prev;
         return [
           {
             tableId: table.id,
             tableNumber: table.tableNumber,
-            amount: transaction?.amount || 0,
+            amount: totalAmount,
             referenceNote: transaction?.referenceNote || 'Direct Mobile USSD Payment',
             paidAt: new Date().toISOString(),
+            items: allItems,
+            orderId: tableOrders[0]?.id || table.id,
+            areaTag: table.area?.name || 'Main Dining',
           },
           ...prev,
         ];
@@ -362,50 +400,132 @@ export default function ManagerDashboardPage() {
           </div>
         </div>
 
-        {/* --- PAID TABLE SETTLEMENT ALERTS --- */}
+        {/* --- PAID TABLE SETTLEMENT CARDS (AUTHENTIC POS CARDS) --- */}
         {paidAlerts.length > 0 && (
-          <div className="space-y-3">
-            {paidAlerts.map((alert) => (
-              <div
-                key={alert.tableId}
-                className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/15 border-2 border-emerald-500/50 dark:border-emerald-500/60 shadow-lg shadow-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3 duration-300"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-md shadow-emerald-600/30 shrink-0 text-base">
-                    T{alert.tableNumber}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
-                        Table #{alert.tableNumber} Bill Paid
-                      </h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-600 text-white uppercase tracking-wider">
-                        PAID
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-emerald-200/80 font-medium mt-0.5">
-                      {alert.amount > 0 && (
-                        <strong className="text-emerald-600 dark:text-emerald-300 font-mono font-bold text-sm mr-2">
-                          {alert.amount.toLocaleString()} ETB
-                        </strong>
-                      )}
-                      <span>{alert.referenceNote || 'Direct Mobile USSD Payment'} &bull; Customer completed payment</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleClearPaidSession(alert.tableId, alert.tableNumber)}
-                    className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
-                  >
-                    <Check className="w-4 h-4 stroke-[3]" />
-                    <span>OK &bull; Clear Session</span>
-                  </button>
-                </div>
+          <div className="space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between pb-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Settled Tables &bull; Ready to Clear ({paidAlerts.length})
+                </h3>
               </div>
-            ))}
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                Customer payment confirmed &bull; Click OK to conclude session
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paidAlerts.map((alert) => {
+                const shortTableCode = `T${alert.tableNumber}`;
+                const shortId = alert.orderId ? alert.orderId.replace(/-/g, '').slice(0, 8) : 'SETTLED';
+
+                return (
+                  <div
+                    key={alert.tableId}
+                    className="bg-white dark:bg-[#071915] rounded-3xl p-6 border-2 border-emerald-400 dark:border-emerald-500/70 shadow-[0_10px_35px_rgba(16,185,129,0.12)] dark:shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col justify-between transition-all duration-300 hover:shadow-xl relative overflow-hidden"
+                  >
+                    {/* Emerald Top Accent Stripe */}
+                    <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500" />
+
+                    {/* CARD HEADER */}
+                    <div>
+                      <div className="flex items-start justify-between gap-3 pt-1">
+                        {/* Table Short Badge */}
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black text-base shrink-0 shadow-md shadow-emerald-600/30">
+                          {shortTableCode}
+                        </div>
+
+                        {/* Table Info & Monospace Ref */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-slate-900 dark:text-white text-base leading-tight flex items-center gap-1.5">
+                            <span>Table #{alert.tableNumber}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                              {alert.areaTag || 'Main Dining'}
+                            </span>
+                          </h3>
+                          <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                            ID: {shortId}
+                          </div>
+                        </div>
+
+                        {/* Status Pill Badge & Time */}
+                        <div className="text-right shrink-0">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/50 shadow-2xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                            <span>PAID</span>
+                          </span>
+                          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold text-right mt-1">
+                            Just now
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* PAYMENT METHOD BADGE */}
+                      <div className="mt-4 px-3.5 py-2 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/40 flex items-center justify-between text-xs">
+                        <span className="text-slate-600 dark:text-emerald-200/80 font-medium">Payment Channel</span>
+                        <span className="font-extrabold text-emerald-700 dark:text-emerald-300 truncate pl-2">
+                          {alert.referenceNote || 'Direct Mobile USSD'}
+                        </span>
+                      </div>
+
+                      {/* ITEMS SETTLED LIST */}
+                      <div className="my-4 space-y-2">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Settled Order Items:
+                        </div>
+                        {alert.items && alert.items.length > 0 ? (
+                          alert.items.slice(0, 4).map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2 truncate pr-2">
+                                <span className="font-bold text-emerald-600 shrink-0">{item.quantity}x</span>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                  {item.name}
+                                </span>
+                              </div>
+                              <span className="font-black text-slate-900 dark:text-white shrink-0">
+                                {item.price ? `${item.price.toLocaleString()} ETB` : ''}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-slate-500 italic">
+                            All session dining orders settled via customer mobile prompt.
+                          </p>
+                        )}
+                        {alert.items && alert.items.length > 4 && (
+                          <p className="text-[11px] text-slate-400 font-medium">
+                            +{alert.items.length - 4} more items...
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* CARD FOOTER */}
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          TOTAL PAID
+                        </span>
+                        <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                          {alert.amount > 0 ? `${alert.amount.toLocaleString()} ETB` : 'Paid in Full'}
+                        </span>
+                      </div>
+
+                      {/* ACTION BUTTON */}
+                      <button
+                        type="button"
+                        onClick={() => handleClearPaidSession(alert.tableId, alert.tableNumber)}
+                        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
+                      >
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>OK &bull; Clear Session</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
