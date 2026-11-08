@@ -19,130 +19,11 @@ import {
   Bell,
   Sparkles,
   Receipt,
-  ShieldCheck,
+  ChefHat,
+  Flame,
   ArrowRight,
+  Radio,
 } from 'lucide-react';
-
-// Demonstration reference orders matching live_ops_light.png
-const DEFAULT_DEMO_ORDERS: Order[] = [
-  {
-    id: '0c038eff-273a-47c1-b3a7-dd2304b91fcb',
-    restaurantId: 'rest-addis-001',
-    tableId: 'tbl-uuid-01',
-    status: 'PENDING',
-    totalAmount: 180,
-    notes: 'no onion',
-    createdAt: new Date(Date.now() - 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 60 * 1000).toISOString(),
-    table: {
-      id: 'tbl-uuid-01',
-      tableNumber: 1,
-      status: 'OCCUPIED',
-      capacity: 4,
-      area: { id: 'area-main-dining', name: 'Dine-in' },
-    },
-    items: [
-      {
-        id: 'item-demo-1',
-        orderId: '0c038eff-273a-47c1-b3a7-dd2304b91fcb',
-        menuItemId: 'mi-1',
-        quantity: 1,
-        unitPrice: 180,
-        notes: 'no onion',
-        menuItem: {
-          id: 'mi-1',
-          name: 'Sambusa Duo (Beef & Lentil)',
-          price: 180,
-          description: '',
-          imageUrl: null,
-        },
-      },
-    ],
-  },
-  {
-    id: '62d45be9-d5c4-4c99-8ea4-7b3b464f350a',
-    restaurantId: 'rest-addis-001',
-    tableId: 'tbl-uuid-01',
-    status: 'PENDING',
-    totalAmount: 320,
-    notes: '',
-    createdAt: new Date(Date.now() - 120 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 120 * 1000).toISOString(),
-    table: {
-      id: 'tbl-uuid-01',
-      tableNumber: 1,
-      status: 'OCCUPIED',
-      capacity: 4,
-      area: { id: 'area-main-dining', name: 'Dine-in' },
-    },
-    items: [
-      {
-        id: 'item-demo-2',
-        orderId: '62d45be9-d5c4-4c99-8ea4-7b3b464f350a',
-        menuItemId: 'mi-2',
-        quantity: 1,
-        unitPrice: 320,
-        notes: null,
-        menuItem: {
-          id: 'mi-2',
-          name: 'Crispy Garlic Wings',
-          price: 320,
-          description: '',
-          imageUrl: null,
-        },
-      },
-    ],
-  },
-  {
-    id: '1042-89a-f43c-482a-bc71-8899aabbccdd',
-    restaurantId: 'rest-addis-001',
-    tableId: 'tbl-uuid-05',
-    status: 'PENDING',
-    totalAmount: 750,
-    notes: 'extra fresh basil on pizza',
-    createdAt: new Date(Date.now() - 180 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 180 * 1000).toISOString(),
-    table: {
-      id: 'tbl-uuid-05',
-      tableNumber: 5,
-      status: 'OCCUPIED',
-      capacity: 4,
-      area: { id: 'area-terrace', name: 'Patio' },
-    },
-    items: [
-      {
-        id: 'item-demo-3a',
-        orderId: '1042-89a-f43c-482a-bc71-8899aabbccdd',
-        menuItemId: 'mi-3',
-        quantity: 1,
-        unitPrice: 350,
-        notes: null,
-        menuItem: {
-          id: 'mi-3',
-          name: 'Smash Burger',
-          price: 350,
-          description: '',
-          imageUrl: null,
-        },
-      },
-      {
-        id: 'item-demo-3b',
-        orderId: '1042-89a-f43c-482a-bc71-8899aabbccdd',
-        menuItemId: 'mi-4',
-        quantity: 1,
-        unitPrice: 400,
-        notes: 'extra fresh basil on pizza',
-        menuItem: {
-          id: 'mi-4',
-          name: 'Margherita Pizza',
-          price: 400,
-          description: '',
-          imageUrl: null,
-        },
-      },
-    ],
-  },
-];
 
 export default function ManagerDashboardPage() {
   const router = useRouter();
@@ -151,14 +32,13 @@ export default function ManagerDashboardPage() {
   const [tables, setTables] = useState<Table[]>([]);
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'ORDERS' | 'REQUESTS'>('ORDERS');
-  const [dismissedOrderIds, setDismissedOrderIds] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'PENDING' | 'PREPARING' | 'READY' | 'REQUESTS'>('PENDING');
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const [actionPending, startActionTransition] = useTransition();
 
   // Socket connection to manager_dashboard room
-  const { on } = useSocket({ isManager: true, autoConnect: true });
+  const { on, isConnected } = useSocket({ isManager: true, autoConnect: true });
 
   const loadData = async () => {
     try {
@@ -192,11 +72,17 @@ export default function ManagerDashboardPage() {
   // Real-time socket handlers
   useEffect(() => {
     const handleNewOrder = (newOrder: Order) => {
-      sound.playChime();
+      try {
+        sound.playChime();
+      } catch {}
       setOrders((prev) => {
-        if (prev.some((o) => o.id === newOrder.id)) return prev;
+        if (prev.some((o) => o.id === newOrder.id)) {
+          return prev.map((o) => (o.id === newOrder.id ? newOrder : o));
+        }
         return [newOrder, ...prev];
       });
+      setActionNotice(`New incoming order from Table #${newOrder.table?.tableNumber || '?'}`);
+      setTimeout(() => setActionNotice(null), 4000);
     };
 
     const cleanupPlaced = on<Order>('order:placed', handleNewOrder);
@@ -210,18 +96,20 @@ export default function ManagerDashboardPage() {
     const cleanupPreparing = on<Order>('order:preparing', handleOrderUpdate);
     const cleanupReady = on<Order>('order:ready', handleOrderUpdate);
     const cleanupServed = on<Order>('order:served', handleOrderUpdate);
-    const cleanupCompleted = on<Order>('order:completed', (completed) => {
-      handleOrderUpdate(completed);
-    });
+    const cleanupCompleted = on<Order>('order:completed', handleOrderUpdate);
     const cleanupRejected = on<Order>('order:rejected', handleOrderUpdate);
 
     const cleanupServiceReq = on<ServiceRequest>('service:requested', (newReq) => {
-      sound.playServiceAlert();
+      try {
+        sound.playServiceAlert();
+      } catch {}
       setRequests((prev) => [newReq, ...prev.filter((r) => r.id !== newReq.id)]);
+      setActionNotice(`New service request from Table #${newReq.table?.tableNumber || '?'}`);
+      setTimeout(() => setActionNotice(null), 4000);
     });
 
-    const cleanupServiceUpdate = on<ServiceRequest>('service:status_updated', (updatedReq) => {
-      setRequests((prev) => prev.map((r) => (r.id === updatedReq.id ? updatedReq : r)));
+    const cleanupServiceUpdate = on<ServiceRequest>('service:status_updated', (updated) => {
+      setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     });
 
     return () => {
@@ -240,8 +128,9 @@ export default function ManagerDashboardPage() {
 
   // Order Actions
   const handleAcceptOrder = (orderId: string, shortId: string) => {
-    sound.playSuccessDing();
-    setDismissedOrderIds((prev) => new Set(prev).add(orderId));
+    try {
+      sound.playSuccessDing();
+    } catch {}
     setActionNotice(`Order #${shortId} accepted and dispatched to Kitchen KDS.`);
     setTimeout(() => setActionNotice(null), 4000);
 
@@ -249,15 +138,15 @@ export default function ManagerDashboardPage() {
       try {
         const updated = await api.orders.accept(orderId);
         setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
-      } catch (err) {
-        // If it's a demo order not in database, it's smoothly handled locally
-        console.log('Processed order dispatch locally:', orderId);
+      } catch (err: any) {
+        alert(err.message || 'Failed to accept order');
       }
     });
   };
 
   const handleRejectOrder = (orderId: string, shortId: string) => {
-    setDismissedOrderIds((prev) => new Set(prev).add(orderId));
+    if (!confirm(`Are you sure you want to reject Order #${shortId}?`)) return;
+
     setActionNotice(`Order #${shortId} was rejected.`);
     setTimeout(() => setActionNotice(null), 3000);
 
@@ -265,14 +154,16 @@ export default function ManagerDashboardPage() {
       try {
         const updated = await api.orders.reject(orderId);
         setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
-      } catch (err) {
-        console.log('Processed order rejection locally:', orderId);
+      } catch (err: any) {
+        alert(err.message || 'Failed to reject order');
       }
     });
   };
 
   const handleResolveRequest = (requestId: string, tableNumber?: number) => {
-    sound.playSuccessDing();
+    try {
+      sound.playSuccessDing();
+    } catch {}
     setActionNotice(`Service request for Table #${tableNumber || 1} marked attended & resolved.`);
     setTimeout(() => setActionNotice(null), 3500);
 
@@ -280,39 +171,37 @@ export default function ManagerDashboardPage() {
       try {
         await api.service.updateStatus(requestId, 'RESOLVED');
         setRequests((prev) => prev.filter((r) => r.id !== requestId));
-      } catch (err) {
-        console.log('Processed service request locally:', requestId);
-        setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      } catch (err: any) {
+        alert(err.message || 'Failed to resolve request');
       }
     });
   };
 
-  // Helper for relative timestamps matching reference design
-  const getRelativeTimeDisplay = (order: Order, index: number) => {
-    if (index === 0) return 'Just now • 1m ago';
-    if (index === 1) return '2m ago';
-    if (index === 2) return '3m ago';
-    const mins = Math.max(1, Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000));
-    return `${mins}m ago`;
+  // Helper for realistic relative timestamps
+  const getRelativeTimeDisplay = (createdAt: string) => {
+    const diffMs = Math.max(0, Date.now() - new Date(createdAt).getTime());
+    const diffSecs = Math.floor(diffMs / 1000);
+    if (diffSecs < 45) return 'Just now';
+    const diffMins = Math.floor(diffSecs / 60);
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    return `${diffHours}h ${diffMins % 60}m ago`;
   };
 
-  // Combine live pending orders with demo orders to guarantee exact reference match
-  const livePendingOrders = orders.filter((o) => o.status === 'PENDING' && !dismissedOrderIds.has(o.id));
-  
-  // Merge live pending with reference demo orders if queue has items dismissed or empty
-  const activeOrderQueue: Order[] = (() => {
-    const list = [...livePendingOrders];
-    for (const demo of DEFAULT_DEMO_ORDERS) {
-      if (!dismissedOrderIds.has(demo.id) && !list.some((o) => o.id === demo.id)) {
-        list.push(demo);
-      }
-    }
-    return list.slice(0, 3);
-  })();
-
-  const preparingOrders = orders.filter((o) => ['ACCEPTED', 'PREPARING'].includes(o.status));
-  const readyOrders = orders.filter((o) => ['READY', 'SERVED'].includes(o.status));
+  // Real Customer Orders by status
+  const pendingOrders = orders.filter((o) => o.status === 'PENDING');
+  const preparingOrders = orders.filter((o) => o.status === 'ACCEPTED' || o.status === 'PREPARING');
+  const readyOrders = orders.filter((o) => o.status === 'READY' || o.status === 'SERVED');
   const pendingRequests = requests.filter((r) => r.status === 'PENDING');
+
+  const displayedOrders =
+    activeTab === 'PENDING'
+      ? pendingOrders
+      : activeTab === 'PREPARING'
+      ? preparingOrders
+      : activeTab === 'READY'
+      ? readyOrders
+      : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f8fafc] via-[#eff6ff] to-[#e0f2fe] dark:bg-[#080c1d] dark:from-[#080c1d] dark:to-[#080c1d] text-slate-900 dark:text-gray-100 flex flex-col relative overflow-hidden font-sans transition-colors duration-200">
@@ -328,51 +217,78 @@ export default function ManagerDashboardPage() {
         {/* --- PAGE HEADER --- */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            {/* Sub-header badge: rounded white squircle card with soft shadow containing amber lightning bolt */}
             <div className="w-14 h-14 rounded-2xl bg-white shadow-md border border-slate-100 dark:bg-[#131b38] dark:border-blue-900/40 flex items-center justify-center text-amber-500 shrink-0 shadow-[0_4px_20px_rgba(245,158,11,0.12)]">
               <Zap className="w-7 h-7 text-amber-500 fill-amber-500 stroke-[1.5]" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0f172a] dark:text-white tracking-tight leading-tight">
-                Manager Station
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-bold text-[#0f172a] dark:text-white tracking-tight leading-tight">
+                  Manager Station
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Ops Feed
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Real-time dining room orders & service calls from customer tables
+              </p>
             </div>
           </div>
 
-          {/* Incoming Order Feed & Service Requests Filter Tabs matching Image 3 */}
-          <div className="flex items-center gap-2">
+          {/* Quick Filter Tabs */}
+          <div className="flex items-center flex-wrap gap-2">
+            {/* 1. Pending Approval */}
             <button
               type="button"
-              onClick={() => setActiveTab('ORDERS')}
-              className={`px-4 py-2 rounded-full flex items-center gap-2.5 transition-all cursor-pointer ${
-                activeTab === 'ORDERS'
+              onClick={() => setActiveTab('PENDING')}
+              className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'PENDING'
                   ? 'bg-white dark:bg-[#0f1738] border border-slate-200/90 dark:border-blue-700/80 shadow-sm ring-1 ring-amber-500/20'
                   : 'bg-white/80 dark:bg-[#0f1738]/60 border border-slate-100 dark:border-blue-900/40 shadow-xs hover:bg-white dark:hover:bg-[#0f1738]'
               }`}
             >
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 shadow-xs" />
               <span className="text-xs font-bold text-[#0f172a] dark:text-white">
-                Incoming Order Feed
+                Incoming Feed
               </span>
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#fef3c7] text-[#92400e] dark:bg-amber-950/60 dark:text-amber-300">
-                {activeOrderQueue.length}
+                {pendingOrders.length}
               </span>
             </button>
 
-            <div className="h-4 w-px bg-slate-200/90 dark:bg-slate-700 mx-0.5" />
-
+            {/* 2. In Kitchen */}
             <button
               type="button"
-              onClick={() => setActiveTab('REQUESTS')}
-              className={`px-4 py-2 rounded-full flex items-center gap-2.5 transition-all cursor-pointer ${
-                activeTab === 'REQUESTS'
+              onClick={() => setActiveTab('PREPARING')}
+              className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'PREPARING'
                   ? 'bg-white dark:bg-[#0f1738] border border-slate-200/90 dark:border-blue-700/80 shadow-sm ring-1 ring-blue-500/20'
                   : 'bg-white/80 dark:bg-[#0f1738]/60 border border-slate-100 dark:border-blue-900/40 shadow-xs hover:bg-white dark:hover:bg-[#0f1738]'
               }`}
             >
-              <Bell className="w-4 h-4 text-[#1e3a8a] dark:text-blue-400 shrink-0" />
+              <ChefHat className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
               <span className="text-xs font-bold text-[#0f172a] dark:text-white">
-                Service Requests
+                In Kitchen
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                {preparingOrders.length}
+              </span>
+            </button>
+
+            {/* 3. Service Requests */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('REQUESTS')}
+              className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'REQUESTS'
+                  ? 'bg-white dark:bg-[#0f1738] border border-slate-200/90 dark:border-blue-700/80 shadow-sm ring-1 ring-emerald-500/20'
+                  : 'bg-white/80 dark:bg-[#0f1738]/60 border border-slate-100 dark:border-blue-900/40 shadow-xs hover:bg-white dark:hover:bg-[#0f1738]'
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="text-xs font-bold text-[#0f172a] dark:text-white">
+                Service Calls
               </span>
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#d1fae5] text-[#065f46] dark:bg-emerald-950/60 dark:text-emerald-300">
                 {pendingRequests.length}
@@ -385,73 +301,98 @@ export default function ManagerDashboardPage() {
         {actionNotice && (
           <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-between animate-in fade-in duration-150">
             <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               {actionNotice}
             </span>
-            <button onClick={() => setActionNotice(null)} className="text-emerald-600 hover:text-emerald-900">
+            <button onClick={() => setActionNotice(null)} className="text-emerald-600 hover:text-emerald-900 cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* --- SECTION HEADER (matching Image 1) --- */}
-        {activeTab === 'ORDERS' && (
-          <div className="flex flex-wrap items-center gap-3">
+        {/* --- SECTION HEADER --- */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-3">
             <h2 className="text-xl font-extrabold text-[#0f172a] dark:text-white tracking-tight">
-              Active Order Queue
+              {activeTab === 'PENDING'
+                ? 'Active Order Queue'
+                : activeTab === 'PREPARING'
+                ? 'Cooking in Kitchen'
+                : activeTab === 'READY'
+                ? 'Ready for Table Delivery'
+                : 'Customer Service Requests'}
             </h2>
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#e0edff] dark:bg-blue-950/60 border border-blue-200/70 dark:border-blue-800/50 text-[#1d4ed8] dark:text-blue-300 text-xs sm:text-sm font-bold shadow-2xs">
               <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
               <span>
-                {activeOrderQueue.length} Orders Awaiting Action
+                {activeTab === 'REQUESTS'
+                  ? `${pendingRequests.length} Requests Awaiting Action`
+                  : `${displayedOrders.length} Orders Awaiting Action`}
               </span>
             </div>
           </div>
-        )}
 
-        {activeTab === 'REQUESTS' && (
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-xl font-extrabold text-[#0f172a] dark:text-white tracking-tight">
-              Service Requests
-            </h2>
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#d1fae5] dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/50 text-[#065f46] dark:text-emerald-300 text-xs sm:text-sm font-bold shadow-2xs">
-              <Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>
-                {pendingRequests.length} Requests Awaiting Action
-              </span>
-            </div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
+            <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+            <span>Connected: {isConnected ? 'Live Socket Active' : 'Connecting...'}</span>
           </div>
-        )}
+        </div>
 
-        {/* --- PENDING ORDER CARDS (3-COLUMN LAYOUT MATCHING REFERENCE IMAGE) --- */}
-        {activeTab === 'ORDERS' && (
+        {/* --- ORDER CARDS VIEW --- */}
+        {activeTab !== 'REQUESTS' && (
           <>
-            {activeOrderQueue.length === 0 ? (
-              <div className="py-24 text-center rounded-3xl bg-white/80 dark:bg-[#0f1738]/60 border border-slate-200 dark:border-blue-900/40 space-y-3">
-                <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6" />
+            {displayedOrders.length === 0 ? (
+              <div className="py-20 text-center rounded-3xl bg-white/80 dark:bg-[#0f1738]/60 border border-slate-200 dark:border-blue-900/40 space-y-4 shadow-sm">
+                <div className="w-14 h-14 mx-auto rounded-3xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40 shadow-xs">
+                  {activeTab === 'PENDING' ? (
+                    <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+                  ) : (
+                    <ChefHat className="w-7 h-7 text-blue-500" />
+                  )}
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">All Orders Dispatched</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                  The active order queue is clear. New incoming guest orders will sound a real-time chime.
-                </p>
+                <div className="space-y-1">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    {activeTab === 'PENDING'
+                      ? 'No Pending Orders Awaiting Action'
+                      : 'No Orders in this Status'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                    {activeTab === 'PENDING'
+                      ? 'When a diner scans a table QR code and submits an order, it will chime and appear here instantly in real-time.'
+                      : 'Orders dispatched to the kitchen will be visible here until completed.'}
+                  </p>
+                </div>
+
+                <div className="pt-2 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/manager/tables')}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                  >
+                    View Tables Matrix
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/kitchen')}
+                    className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white transition cursor-pointer"
+                  >
+                    Open Kitchen KDS
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activeOrderQueue.map((order, index) => {
+                {displayedOrders.map((order) => {
                   const tableNumber = order.table?.tableNumber || 1;
                   const shortTableCode = `T${tableNumber}`;
                   const shortId = order.id.replace(/-/g, '').slice(0, 8);
-                  const areaTag =
-                    order.table?.area?.name || (tableNumber === 5 ? 'Patio' : 'Dine-in');
-                  const relativeTime = getRelativeTimeDisplay(order, index);
+                  const areaTag = order.table?.area?.name || 'Main Dining';
+                  const relativeTime = getRelativeTimeDisplay(order.createdAt);
                   const totalETB = Number(order.totalAmount).toLocaleString();
 
-                  // Custom instructions check
+                  // Customer Dietary / Kitchen Note
                   const customNote =
-                    order.notes ||
-                    order.items.find((i) => i.notes)?.notes ||
-                    (index === 0 ? 'no onion' : index === 2 ? 'extra fresh basil on pizza' : null);
+                    order.notes || order.items.find((i) => i.notes)?.notes;
 
                   return (
                     <div
@@ -461,12 +402,12 @@ export default function ManagerDashboardPage() {
                       {/* CARD HEADER */}
                       <div>
                         <div className="flex items-start justify-between gap-3">
-                          {/* Left: Light blue squircle tag with bold table short-code */}
+                          {/* Table Short Badge */}
                           <div className="w-12 h-12 rounded-2xl bg-blue-50/80 border border-blue-100 dark:bg-blue-950/60 dark:border-blue-800/40 flex items-center justify-center font-black text-blue-950 dark:text-blue-300 text-base shrink-0 shadow-2xs">
                             {shortTableCode}
                           </div>
 
-                          {/* Center: Table name + subtle monospace order ID */}
+                          {/* Table Info & Monospace ID */}
                           <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-slate-900 dark:text-white text-base leading-tight flex items-center gap-1.5">
                               <span>Table #{tableNumber}</span>
@@ -479,11 +420,19 @@ export default function ManagerDashboardPage() {
                             </div>
                           </div>
 
-                          {/* Right: Amber pill badge with clock icon PENDING + relative time indicator */}
+                          {/* Status Pill Badge & Time */}
                           <div className="text-right shrink-0">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/30">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                                order.status === 'PENDING'
+                                  ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border-amber-500/30'
+                                  : order.status === 'ACCEPTED' || order.status === 'PREPARING'
+                                  ? 'bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-500/30'
+                                  : 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-500/30'
+                              }`}
+                            >
                               <Clock className="w-3.5 h-3.5" />
-                              <span>PENDING</span>
+                              <span>{order.status}</span>
                             </span>
                             <div className="text-[11px] text-amber-600/80 dark:text-amber-400 font-semibold text-right mt-1">
                               {relativeTime}
@@ -528,7 +477,7 @@ export default function ManagerDashboardPage() {
                       <div>
                         {/* TOTAL AMOUNT */}
                         <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800/60 mb-4">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                             TOTAL AMOUNT
                           </span>
                           <span className="text-xl font-black text-slate-900 dark:text-white">
@@ -537,27 +486,33 @@ export default function ManagerDashboardPage() {
                         </div>
 
                         {/* ACTION BUTTONS */}
-                        <div className="grid grid-cols-2 gap-3">
-                          {/* Primary CTA: Accept & Send */}
-                          <button
-                            disabled={actionPending}
-                            onClick={() => handleAcceptOrder(order.id, shortId)}
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl py-3 shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-sm"
-                          >
-                            <Check className="w-4 h-4 stroke-[3]" />
-                            <span>Accept &amp; Send</span>
-                          </button>
+                        {order.status === 'PENDING' ? (
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Primary CTA: Accept & Send */}
+                            <button
+                              disabled={actionPending}
+                              onClick={() => handleAcceptOrder(order.id, shortId)}
+                              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl py-3 shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-sm"
+                            >
+                              <Check className="w-4 h-4 stroke-[3]" />
+                              <span>Accept &amp; Send</span>
+                            </button>
 
-                          {/* Secondary CTA: Reject */}
-                          <button
-                            disabled={actionPending}
-                            onClick={() => handleRejectOrder(order.id, shortId)}
-                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-bold rounded-xl py-3 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-sm"
-                          >
-                            <X className="w-4 h-4 stroke-[3]" />
-                            <span>Reject</span>
-                          </button>
-                        </div>
+                            {/* Secondary CTA: Reject */}
+                            <button
+                              disabled={actionPending}
+                              onClick={() => handleRejectOrder(order.id, shortId)}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-bold rounded-xl py-3 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-sm"
+                            >
+                              <X className="w-4 h-4 stroke-[3]" />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-full py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/30 text-center text-xs font-bold text-blue-700 dark:text-blue-300">
+                            Dispatched to Kitchen &bull; Currently Cooking
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
