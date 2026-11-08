@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import PaymentModal, { PaymentProvider } from '@/components/customer/PaymentModal';
 
 function CelebrationFlagIcon({ className = 'w-6 h-6' }: { className?: string }) {
   return (
@@ -89,9 +90,7 @@ export default function OrderTrackPage() {
 
   // Digital Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('telebirr');
-  const [txnReference, setTxnReference] = useState<string>('');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [selectedMethodName, setSelectedMethodName] = useState<string>('Telebirr');
 
   // Navigation back to menu preserving table tokens
   const handleOrderMore = () => {
@@ -215,40 +214,37 @@ export default function OrderTrackPage() {
     };
   }, [on, tableId]);
 
-  // Handle Confirm Payment / Settle
-  const handleConfirmPayment = async () => {
+  // Handle Confirm Payment / Settle via Direct Mobile USSD Push
+  const handlePaymentSubmit = async (data: {
+    provider: PaymentProvider;
+    phoneNumber: string;
+    grandTotal: number;
+  }) => {
     try {
       setRequestingBill(true);
-      const method =
-        selectedMethod === 'telebirr'
-          ? 'TELEBIRR'
-          : selectedMethod === 'cbe'
-          ? 'CBE_BIRR'
-          : 'CASH';
+      const method = data.provider === 'telebirr' ? 'TELEBIRR' : 'CBE_BIRR';
+      const providerLabel =
+        data.provider === 'telebirr'
+          ? 'Telebirr'
+          : data.provider === 'cbe'
+          ? 'CBE Birr'
+          : 'Awash Birr';
+
+      setSelectedMethodName(providerLabel);
 
       await api.tables.pay(tableId, {
         paymentMethod: method,
-        referenceNote: txnReference.trim() || undefined,
+        referenceNote: `[${providerLabel} USSD Push] Phone: +251 ${data.phoneNumber}`,
       });
 
       setPaymentSubmitted(true);
       setBillRequested(true);
-      setIsPaymentModalOpen(false);
-      sound.playSuccessDing();
     } catch (err) {
       console.error('Failed to submit payment:', err);
-      alert(err instanceof Error ? err.message : 'Failed to submit payment');
+      throw err;
     } finally {
       setRequestingBill(false);
     }
-  };
-
-  const copyToClipboard = (text: string, label: string) => {
-    try {
-      navigator.clipboard.writeText(text);
-      setCopiedCode(label);
-      setTimeout(() => setCopiedCode(null), 2500);
-    } catch {}
   };
 
   // Derive active vs completed orders
@@ -822,11 +818,7 @@ export default function OrderTrackPage() {
                   </h4>
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase">
-                  {selectedMethod === 'telebirr'
-                    ? 'Telebirr'
-                    : selectedMethod === 'cbe'
-                    ? 'CBE Birr'
-                    : 'Cash / POS'}
+                  {selectedMethodName || 'USSD Mobile'}
                 </span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
@@ -862,240 +854,16 @@ export default function OrderTrackPage() {
         </div>
       </main>
 
-      {/* --- IN-APP PAYMENT SELECTION MODAL --- */}
-      {isPaymentModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 font-sans">
-          <div className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-5 animate-in zoom-in-95">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base font-extrabold text-slate-900">Select Payment Method</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Bill Summary Banner */}
-            <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-100 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Bill</span>
-                <span className="text-xs text-blue-600 font-bold">Table #{tableNumber} &bull; {activeOrders.length} round(s)</span>
-              </div>
-              <span className="text-xl font-black text-blue-600">
-                {grandTotal.toLocaleString()} ETB
-              </span>
-            </div>
-
-            {/* Payment Method Selector Cards */}
-            <div className="space-y-2.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Choose Settlement Option</label>
-
-              {/* 1. Telebirr */}
-              <div
-                onClick={() => setSelectedMethod('telebirr')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                  selectedMethod === 'telebirr'
-                    ? 'bg-blue-50/60 border-blue-500 ring-2 ring-blue-500/20'
-                    : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                      <Smartphone className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Telebirr</h4>
-                      <p className="text-[11px] text-slate-500">Pay via Till QR or USSD (*127#)</p>
-                    </div>
-                  </div>
-                  <span
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selectedMethod === 'telebirr' ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
-                    }`}
-                  >
-                    {selectedMethod === 'telebirr' && <Check className="w-3 h-3 text-white" />}
-                  </span>
-                </div>
-
-                {selectedMethod === 'telebirr' && (
-                  <div className="mt-3 pt-3 border-t border-blue-200/60 space-y-2.5 animate-in fade-in duration-200">
-                    <div className="bg-white p-2.5 rounded-xl border border-blue-100 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-[9px] text-slate-400 block font-bold uppercase">MERCHANT TILL NUMBER</span>
-                        <span className="font-mono font-black text-blue-600 text-sm">984210</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard('984210', 'till');
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[11px] font-bold text-blue-600 flex items-center gap-1 transition"
-                      >
-                        {copiedCode === 'till' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                        <span>{copiedCode === 'till' ? 'Copied' : 'Copy'}</span>
-                      </button>
-                    </div>
-
-                    <div className="bg-white p-2.5 rounded-xl border border-blue-100 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-[9px] text-slate-400 block font-bold uppercase">USSD QUICK DIAL</span>
-                        <span className="font-mono text-slate-700 text-xs font-bold">*127*984210*{grandTotal}#</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard(`*127*984210*${grandTotal}#`, 'ussd');
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[11px] font-bold text-blue-600 flex items-center gap-1 transition"
-                      >
-                        {copiedCode === 'ussd' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                        <span>{copiedCode === 'ussd' ? 'Copied' : 'Copy'}</span>
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                        Transaction Reference / Phone Number (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={txnReference}
-                        onChange={(e) => setTxnReference(e.target.value)}
-                        placeholder="e.g. TE-894210 or 0912..."
-                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-blue-500 transition"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 2. CBE Birr */}
-              <div
-                onClick={() => setSelectedMethod('cbe')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                  selectedMethod === 'cbe'
-                    ? 'bg-purple-50/60 border-purple-500 ring-2 ring-purple-500/20'
-                    : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">CBE Birr / CBE Mobile</h4>
-                      <p className="text-[11px] text-slate-500">Direct account transfer or *847#</p>
-                    </div>
-                  </div>
-                  <span
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selectedMethod === 'cbe' ? 'border-purple-600 bg-purple-600' : 'border-slate-300'
-                    }`}
-                  >
-                    {selectedMethod === 'cbe' && <Check className="w-3 h-3 text-white" />}
-                  </span>
-                </div>
-
-                {selectedMethod === 'cbe' && (
-                  <div className="mt-3 pt-3 border-t border-purple-200/60 space-y-2.5 animate-in fade-in duration-200">
-                    <div className="bg-white p-2.5 rounded-xl border border-purple-100 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-[9px] text-slate-400 block font-bold uppercase">CBE ACCOUNT NUMBER</span>
-                        <span className="font-mono font-black text-purple-600 text-sm">1000 4829 1042</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard('100048291042', 'cbe');
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-[11px] font-bold text-purple-600 flex items-center gap-1 transition"
-                      >
-                        {copiedCode === 'cbe' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                        <span>{copiedCode === 'cbe' ? 'Copied' : 'Copy'}</span>
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                        Transaction Reference / Payer Name (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={txnReference}
-                        onChange={(e) => setTxnReference(e.target.value)}
-                        placeholder="e.g. FT-382942 or Full Name"
-                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-purple-500 transition"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 3. Cash or Card at Table */}
-              <div
-                onClick={() => setSelectedMethod('cash_card')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                  selectedMethod === 'cash_card'
-                    ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-500/20'
-                    : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
-                      <Banknote className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Cash or POS Card Machine</h4>
-                      <p className="text-[11px] text-slate-500">Waiter will bring bill receipt and terminal</p>
-                    </div>
-                  </div>
-                  <span
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selectedMethod === 'cash_card' ? 'border-amber-600 bg-amber-600' : 'border-slate-300'
-                    }`}
-                  >
-                    {selectedMethod === 'cash_card' && <Check className="w-3 h-3 text-white" />}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Confirm Settlement Button */}
-            <div className="pt-2">
-              <button
-                type="button"
-                disabled={requestingBill}
-                onClick={handleConfirmPayment}
-                className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:opacity-75 transition cursor-pointer"
-              >
-                {requestingBill ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Notifying Staff...</span>
-                  </>
-                ) : (
-                  <>
-                    <Receipt className="w-4 h-4" />
-                    <span>Confirm & Request Bill ({grandTotal.toLocaleString()} ETB)</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* --- IN-APP DIRECT USSD MOBILE PAYMENT MODAL --- */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        tableNumber={tableNumber}
+        tableId={tableId}
+        grandTotal={grandTotal}
+        itemCount={activeOrders.reduce((sum, o) => sum + (o.items?.length || 0), 0)}
+        onConfirmPayment={handlePaymentSubmit}
+      />
     </div>
   );
 }

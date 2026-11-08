@@ -537,17 +537,17 @@ function CustomerMenuContent() {
   };
 
   const handleRequestBill = async () => {
+    let activeToken = token;
     try {
-      await api.service.create(tableId, 'REQUEST_BILL');
-      setServiceAlert({ message: 'Bill requested! Staff will bring your receipt shortly.', type: 'bill' });
-      try {
-        sound.playSuccessDing();
-      } catch {}
-      setTimeout(() => setServiceAlert(null), 5000);
-    } catch {
-      setServiceAlert({ message: 'Bill requested! Staff will bring your receipt shortly.', type: 'bill' });
-      setTimeout(() => setServiceAlert(null), 5000);
-    }
+      if (!activeToken && typeof window !== 'undefined') {
+        activeToken =
+          sessionStorage.getItem(`smart_menu_table_token_${tableId}`) ||
+          sessionStorage.getItem('smart_menu_customer_token') ||
+          '';
+      }
+    } catch {}
+
+    router.push(`/table/${tableId}/track${activeToken ? `?token=${encodeURIComponent(activeToken)}` : ''}`);
   };
 
   // 3. Checkout Order Handler
