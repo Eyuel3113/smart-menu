@@ -24,6 +24,18 @@ async function resolveStaffRestaurantId(req: Request): Promise<string> {
   return restaurantId || '';
 }
 
+function getRequestOrigin(req: Request): string | undefined {
+  if (req.headers.origin && typeof req.headers.origin === 'string') {
+    return req.headers.origin;
+  }
+  if (req.headers.referer && typeof req.headers.referer === 'string') {
+    try {
+      return new URL(req.headers.referer).origin;
+    } catch {}
+  }
+  return undefined;
+}
+
 export class TableController {
   static async validateToken(req: Request, res: Response, next: NextFunction) {
     try {
@@ -40,7 +52,8 @@ export class TableController {
     try {
       const restaurantId = await resolveStaffRestaurantId(req);
       const areaId = req.query.areaId as string | undefined;
-      const result = await TableService.getTables(restaurantId, areaId);
+      const origin = getRequestOrigin(req);
+      const result = await TableService.getTables(restaurantId, areaId, origin);
       return sendSuccess(res, result, 'Tables retrieved');
     } catch (error) {
       next(error);
@@ -50,7 +63,8 @@ export class TableController {
   static async getTableById(req: Request, res: Response, next: NextFunction) {
     try {
       const tableId = req.params.id;
-      const table = await TableService.getTableById(tableId);
+      const origin = getRequestOrigin(req);
+      const table = await TableService.getTableById(tableId, origin);
       return sendSuccess(res, table, 'Table details retrieved');
     } catch (error) {
       next(error);
@@ -111,7 +125,8 @@ export class TableController {
   static async regenerateQr(req: Request, res: Response, next: NextFunction) {
     try {
       const tableId = req.params.id;
-      const table = await TableService.regenerateTableQr(tableId);
+      const origin = getRequestOrigin(req);
+      const table = await TableService.regenerateTableQr(tableId, origin);
       return sendSuccess(res, table, 'Table QR regenerated successfully');
     } catch (error) {
       next(error);

@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { initSocketIO } from './sockets';
 import { ENV } from './config/env';
 import prisma from './config/db';
+import { TableService } from './services/table.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -27,6 +28,11 @@ async function bootstrap() {
     console.log(`🚀 Smart Menu Server running in [${ENV.NODE_ENV}] mode on http://localhost:${ENV.PORT}`);
     console.log(`📡 Socket.io real-time server bound and active`);
     console.log(`🔌 Database connected to: ${ENV.DATABASE_URL.replace(/:[^:]*@/, ':****@')}`);
+
+    // Synchronize all table QR codes to active production client URL
+    TableService.syncAllTableQrs().catch((err) => {
+      console.warn('Startup QR sync warning:', err.message);
+    });
   });
 
   const shutdown = async (signal: string) => {

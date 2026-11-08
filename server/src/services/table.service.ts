@@ -2,7 +2,7 @@ import { TableStatus, PaymentMethod, PaymentStatus, OrderStatus, Prisma } from '
 import { randomUUID } from 'crypto';
 import prisma from '../config/db';
 import { signCustomerToken, verifyCustomerToken } from '../utils/jwt';
-import { buildTableQrUrl, generateQrCodeDataUrl } from '../utils/qr';
+import { buildTableQrUrl, generateQrCodeDataUrl, getEffectiveClientUrl } from '../utils/qr';
 import { AppError } from '../utils/response';
 import {
   emitTableStatusUpdated,
@@ -97,7 +97,7 @@ export class TableService {
     };
   }
 
-  static async getTables(restaurantId?: string, areaId?: string) {
+  static async getTables(restaurantId?: string, areaId?: string, requestOrigin?: string) {
     let where: any = {};
     if (restaurantId) {
       where.restaurantId = restaurantId;
@@ -158,27 +158,39 @@ export class TableService {
       }
     }
 
-    const mappedTables = tables.map((t) => {
-      // Retain special states
-      if (
-        t.status === TableStatus.PAID_PENDING ||
-        t.status === TableStatus.BILL_REQUESTED ||
-        t.status === TableStatus.CLEANING
-      ) {
-        return t;
-      }
+    const effectiveBaseUrl = getEffectiveClientUrl(requestOrigin);
 
-      const hasActiveOrder = t.orders.some((o) =>
-        ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED'].includes(o.status)
-      );
-      if (hasActiveOrder) {
-        return {
-          ...t,
-          status: TableStatus.OCCUPIED,
-        };
-      }
-      return t;
-    });
+    const mappedTables = await Promise.all(
+      tables.map(async (t) => {
+        let qrCodeUrl = t.qrCodeUrl;
+        // Dynamically ensure QR encodes the production / active client domain
+        if (effectiveBaseUrl && !effectiveBaseUrl.includes('localhost')) {
+          const qrLink = `${effectiveBaseUrl}/table/${t.id}?token=${encodeURIComponent(t.secretToken)}`;
+          qrCodeUrl = await generateQrCodeDataUrl(qrLink);
+        }
+
+        // Retain special states
+        if (
+          t.status === TableStatus.PAID_PENDING ||
+          t.status === TableStatus.BILL_REQUESTED ||
+          t.status === TableStatus.CLEANING
+        ) {
+          return { ...t, qrCodeUrl };
+        }
+
+        const hasActiveOrder = t.orders.some((o) =>
+          ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED'].includes(o.status)
+        );
+        if (hasActiveOrder) {
+          return {
+            ...t,
+            qrCodeUrl,
+            status: TableStatus.OCCUPIED,
+          };
+        }
+        return { ...t, qrCodeUrl };
+      })
+    );
 
     const kpis = {
       total: mappedTables.length,
@@ -195,7 +207,7 @@ export class TableService {
     };
   }
 
-  static async getTableById(tableId: string) {
+  static async getTableById(tableId: string, requestOrigin?: string) {
     const table = await prisma.table.findUnique({
       where: { id: tableId },
       include: {
@@ -241,6 +253,13 @@ export class TableService {
       throw new AppError('Table not found', 404);
     }
 
+    const effectiveBaseUrl = getEffectiveClientUrl(requestOrigin);
+    let qrCodeUrl = table.qrCodeUrl;
+    if (effectiveBaseUrl && !effectiveBaseUrl.includes('localhost')) {
+      const qrLink = `${effectiveBaseUrl}/table/${table.id}?token=${encodeURIComponent(table.secretToken)}`;
+      qrCodeUrl = await generateQrCodeDataUrl(qrLink);
+    }
+
     if (
       table.status !== TableStatus.PAID_PENDING &&
       table.status !== TableStatus.BILL_REQUESTED &&
@@ -252,12 +271,13 @@ export class TableService {
       if (hasActiveOrder) {
         return {
           ...table,
+          qrCodeUrl,
           status: TableStatus.OCCUPIED,
         };
       }
     }
 
-    return table;
+    return { ...table, qrCodeUrl };
   }
 
   static async updateTableStatus(tableId: string, status: TableStatus) {
@@ -430,7 +450,26 @@ export class TableService {
     };
   }
 
-  static async regenerateTableQr(tableId: string) {
+  static async syncAllTableQrs(baseUrl?: string) {
+    const targetUrl = getEffectiveClientUrl(baseUrl);
+    if (!targetUrl || targetUrl.includes('localhost')) return;
+    try {
+      const tables = await prisma.table.findMany({ select: { id: true, secretToken: true } });
+      for (const table of tables) {
+        const qrLink = `${targetUrl}/table/${table.id}?token=${encodeURIComponent(table.secretToken)}`;
+        const qrCodeUrl = await generateQrCodeDataUrl(qrLink);
+        await prisma.table.update({
+          where: { id: table.id },
+          data: { qrCodeUrl },
+        });
+      }
+      console.log(`✅ Synced ${tables.length} table QR codes to: ${targetUrl}`);
+    } catch (err: any) {
+      console.warn('Could not sync table QR codes to database:', err.message);
+    }
+  }
+
+  static async regenerateTableQr(tableId: string, requestOrigin?: string) {
     const table = await prisma.table.findUnique({
       where: { id: tableId },
     });
@@ -440,7 +479,7 @@ export class TableService {
     }
 
     const newSecret = randomUUID();
-    const qrLink = buildTableQrUrl(table.id, newSecret);
+    const qrLink = buildTableQrUrl(table.id, newSecret, requestOrigin);
     const qrCodeUrl = await generateQrCodeDataUrl(qrLink);
 
     const updated = await prisma.table.update({
