@@ -29,7 +29,7 @@ git push -u origin main
    - **Branch**: `main`
    - **Root Directory**: `server`
    - **Runtime**: `Node`
-   - **Build Command**: `npm install && npm run prisma:generate && npm run build`
+   - **Build Command**: `npm install --include=dev && npm run prisma:generate && npm run build`
    - **Start Command**: `npm run prisma:push && npm start`
    - **Plan**: Free (or Starter for production zero-sleep)
 
@@ -79,3 +79,4 @@ Now, every time you push changes to your `main` branch:
    ```
 2. **Vercel** automatically triggers a build and deploys the frontend.
 3. **Render** automatically detects changes, rebuilds, pushes Prisma schema updates, and redeploys the backend.
+
