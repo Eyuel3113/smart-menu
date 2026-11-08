@@ -30,7 +30,7 @@ export default function PaymentModal({
   onConfirmPayment,
 }: PaymentModalProps) {
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>('telebirr');
-  const [phoneNumber, setPhoneNumber] = useState<string>('913260197');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [ussdDispatched, setUssdDispatched] = useState<boolean>(false);
 
@@ -316,7 +316,7 @@ export default function PaymentModal({
                   inputMode="numeric"
                   value={phoneNumber}
                   onChange={handlePhoneChange}
-                  placeholder="913260197"
+                  placeholder="9xxxxxxxx"
                   className="bg-transparent text-white font-mono font-bold text-base placeholder-slate-600 focus:outline-hidden flex-1 tracking-wider"
                 />
               </div>

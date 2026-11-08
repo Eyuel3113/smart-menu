@@ -21,41 +21,8 @@ import {
   ChevronDown,
   Settings,
   LogOut,
+  Radio,
 } from 'lucide-react';
-
-// Reference demonstration ticket matching screenshot if queue is empty
-const DEMO_KDS_TICKET: Order = {
-  id: '0c038eff-273a-47c1-b3a7-dd2304b91fcb',
-  restaurantId: 'rest-addis-001',
-  tableId: 'tbl-uuid-01',
-  status: 'ACCEPTED',
-  totalAmount: 180,
-  notes: 'no onion',
-  createdAt: new Date(Date.now() - (1293 * 60 + 35) * 1000).toISOString(),
-  updatedAt: new Date(Date.now() - (1293 * 60 + 35) * 1000).toISOString(),
-  table: {
-    id: 'tbl-uuid-01',
-    tableNumber: 1,
-    status: 'OCCUPIED',
-    capacity: 4,
-    area: { id: 'area-1', name: 'Dine-in' },
-  },
-  items: [
-    {
-      id: 'item-demo-kds-1',
-      orderId: '0c038eff-273a-47c1-b3a7-dd2304b91fcb',
-      menuItemId: 'mi-1',
-      quantity: 1,
-      unitPrice: 180,
-      notes: 'no onion',
-      menuItem: {
-        id: 'mi-1',
-        name: 'Sambusa Duo (Beef & Lentil)',
-        price: 180,
-      },
-    },
-  ],
-};
 
 export default function KitchenDisplayPage() {
   const router = useRouter();
@@ -149,7 +116,9 @@ export default function KitchenDisplayPage() {
         }
         return [newOrder, ...prev];
       });
-      sound.playChime();
+      try {
+        sound.playChime();
+      } catch {}
     };
 
     const cleanupAccepted = on<Order>('order:accepted', handleKitchenOrder);
@@ -161,8 +130,9 @@ export default function KitchenDisplayPage() {
       );
     });
 
-    // When food is ready or served or cancelled, remove ticket from active cook screen
+    // When food is ready or served or cancelled, permanently remove ticket from active cook screen
     const removeTicket = (doneTicket: Order) => {
+      setDismissedOrderIds((prev) => new Set(prev).add(doneTicket.id));
       setOrders((prev) => prev.filter((o) => o.id !== doneTicket.id));
     };
 
@@ -184,29 +154,34 @@ export default function KitchenDisplayPage() {
 
   // Actions
   const handleStartPreparing = (orderId: string) => {
+    // Optimistic UI update
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'PREPARING' } : o))
+    );
+
     startActionTransition(async () => {
       try {
         const updated = await api.orders.prepare(orderId);
         setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
-      } catch (err) {
-        // Fallback for demo ticket
-        setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status: 'PREPARING' } : o))
-        );
+      } catch (err: any) {
+        console.error('Failed to start preparing:', err);
       }
     });
   };
 
   const handleMarkReady = (orderId: string) => {
+    // Immediately remove from screen
     setDismissedOrderIds((prev) => new Set(prev).add(orderId));
+    setOrders((prev) => prev.filter((o) => o.id !== orderId));
+    try {
+      sound.playSuccessDing();
+    } catch {}
+
     startActionTransition(async () => {
       try {
         await api.orders.ready(orderId);
-        sound.playSuccessDing();
-        setOrders((prev) => prev.filter((o) => o.id !== orderId));
-      } catch (err) {
-        sound.playSuccessDing();
-        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      } catch (err: any) {
+        console.error('Failed to mark order ready:', err);
       }
     });
   };
@@ -238,15 +213,10 @@ export default function KitchenDisplayPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Live tickets combined with reference demo ticket if queue is empty
-  const activeTickets = orders.filter((o) => !dismissedOrderIds.has(o.id));
-  const displayTickets: Order[] = (() => {
-    if (activeTickets.length > 0) return activeTickets;
-    if (!dismissedOrderIds.has(DEMO_KDS_TICKET.id)) {
-      return [DEMO_KDS_TICKET];
-    }
-    return [];
-  })();
+  // Real live tickets currently cooking or accepted
+  const displayTickets = orders.filter(
+    (o) => (o.status === 'ACCEPTED' || o.status === 'PREPARING') && !dismissedOrderIds.has(o.id)
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f8fafc] via-[#eff6ff] to-[#e0f2fe] dark:bg-[#080c1d] dark:from-[#080c1d] dark:to-[#080c1d] text-slate-900 dark:text-gray-100 flex flex-col relative overflow-hidden font-sans transition-colors duration-200 select-none">
@@ -268,48 +238,48 @@ export default function KitchenDisplayPage() {
               <h1 className="text-base sm:text-lg font-black text-[#0f172a] dark:text-white tracking-wide uppercase font-sans">
                 Kitchen Display System (KDS)
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-orange-500 text-white text-xs font-bold shadow-2xs">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#f97316] text-white shadow-xs">
                 {displayTickets.length} Active
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-sans mt-0.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-              <span>Real-Time Pipeline Bound</span>
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-blue-300/70 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Real-Time Kitchen Pipeline Active</span>
             </div>
           </div>
         </div>
 
-        {/* Right: Controls & Navigation */}
-        <div className="flex items-center gap-2 sm:gap-2.5 font-sans">
-          {/* Sound Mute/Unmute */}
+        {/* Right: Sound, Refresh, Fullscreen Controls & Profile */}
+        <div className="flex items-center gap-2">
+          {/* Mute/Unmute Toggle */}
           <button
             onClick={toggleSound}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-md ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition border shadow-xs cursor-pointer ${
               isMuted
-                ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/25 active:scale-95'
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25 active:scale-95'
+                ? 'bg-rose-50 border-rose-200 text-rose-500 dark:bg-rose-950/40 dark:border-rose-800'
+                : 'bg-blue-600 border-blue-600 text-white'
             }`}
-            title={isMuted ? 'Muted (Click to unmute)' : 'Audio Active (Click to mute)'}
+            title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-white stroke-[2.2]" /> : <Volume2 className="w-4 h-4 text-white stroke-[2.2]" />}
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
 
-          {/* Refresh Tickets */}
+          {/* Refresh Button */}
           <button
             onClick={loadKitchenOrders}
-            className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 flex items-center justify-center transition-all cursor-pointer active:scale-95"
-            title="Refresh Tickets"
+            className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center transition hover:bg-blue-700 shadow-xs cursor-pointer active:scale-95"
+            title="Refresh Orders"
           >
-            <RefreshCw className="w-4 h-4 text-white stroke-[2.2]" />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
           {/* Fullscreen Toggle */}
           <button
             onClick={toggleFullscreen}
-            className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 flex items-center justify-center transition-all cursor-pointer active:scale-95"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center transition hover:bg-blue-700 shadow-xs cursor-pointer active:scale-95"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           >
-            {isFullscreen ? <Minimize className="w-4 h-4 text-white stroke-[2.2]" /> : <Maximize className="w-4 h-4 text-white stroke-[2.2]" />}
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
           </button>
 
           <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
@@ -323,7 +293,7 @@ export default function KitchenDisplayPage() {
             <span>Manager</span>
           </Link>
 
-          {/* Profile User Avatar Pill & Dropdown matching other pages */}
+          {/* Profile User Avatar Pill & Dropdown */}
           <div className="relative">
             <button
               onClick={() => setProfileOpen(!profileOpen)}
@@ -331,7 +301,7 @@ export default function KitchenDisplayPage() {
               title="Staff Profile"
             >
               <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-600/30 border border-blue-300 dark:border-blue-400/40 flex items-center justify-center font-bold text-xs text-blue-700 dark:text-blue-200">
-                D
+                K
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-500 dark:text-blue-300" />
             </button>
@@ -339,8 +309,8 @@ export default function KitchenDisplayPage() {
             {profileOpen && (
               <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-white dark:bg-[#0f1738] border border-slate-200 dark:border-blue-800/40 p-2 shadow-2xl z-50 animate-in fade-in space-y-1">
                 <div className="px-3 py-2 border-b border-slate-100 dark:border-blue-900/40">
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">Kitchen Display</p>
-                  <p className="text-[10px] text-slate-500 dark:text-blue-300/70">Taste of Addis</p>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Kitchen Station</p>
+                  <p className="text-[10px] text-slate-500 dark:text-blue-300/70">Head Chef Console</p>
                 </div>
                 <Link
                   href="/manager/settings"
@@ -348,7 +318,7 @@ export default function KitchenDisplayPage() {
                   onClick={() => setProfileOpen(false)}
                 >
                   <Settings className="w-3.5 h-3.5 text-blue-500" />
-                  <span>CMS Settings</span>
+                  <span>Settings</span>
                 </Link>
                 <button
                   onClick={handleLogout}
@@ -402,7 +372,7 @@ export default function KitchenDisplayPage() {
               const customInstructions =
                 ticket.notes ||
                 ticket.items.find((i) => i.notes)?.notes ||
-                'no onion';
+                null;
 
               return (
                 <div
@@ -444,14 +414,16 @@ export default function KitchenDisplayPage() {
                     </div>
 
                     {/* Kitchen Instructions Box */}
-                    <div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">
-                        KITCHEN INSTRUCTIONS:
-                      </span>
-                      <div className="bg-black/40 border border-amber-900/40 rounded-xl px-3.5 py-2.5 text-xs font-medium text-amber-400 italic">
-                        {customInstructions}
+                    {customInstructions && (
+                      <div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">
+                          KITCHEN INSTRUCTIONS:
+                        </span>
+                        <div className="bg-black/40 border border-amber-900/40 rounded-xl px-3.5 py-2.5 text-xs font-medium text-amber-400 italic">
+                          “{customInstructions}”
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Card Action Footer */}
