@@ -37,9 +37,10 @@ export interface ReelItem {
   fallbackVideoSrc?: string;
   posterSrc: string;
   tags: string[];
+  isActive?: boolean;
 }
 
-const REELS_DATA: ReelItem[] = [
+export const DEFAULT_REELS_DATA: ReelItem[] = [
   {
     id: 'reel-coffee-ceremony',
     title: 'Traditional Jebena Coffee Roasting',
@@ -61,6 +62,7 @@ const REELS_DATA: ReelItem[] = [
     posterSrc:
       'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
     tags: ['#OrganicCoffee', '#JebenaBuna', '#HabeshaCulture', '#FreshRoast'],
+    isActive: true,
   },
   {
     id: 'reel-sizzling-tibs',
@@ -83,6 +85,7 @@ const REELS_DATA: ReelItem[] = [
     posterSrc:
       'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=80',
     tags: ['#SheklaTibs', '#SizzlingHot', '#NiterKibbeh', '#IronGrill'],
+    isActive: true,
   },
   {
     id: 'reel-artisan-pizza',
@@ -105,6 +108,7 @@ const REELS_DATA: ReelItem[] = [
     posterSrc:
       'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=800&q=80',
     tags: ['#WoodFired', '#CrispyCrust', '#FreshMozzarella', '#StoneOven'],
+    isActive: true,
   },
   {
     id: 'reel-craft-cocktail',
@@ -127,22 +131,64 @@ const REELS_DATA: ReelItem[] = [
     posterSrc:
       'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&q=80',
     tags: ['#CraftCocktails', '#AddisNights', '#FreshSpritz', '#ShakenNotStirred'],
+    isActive: true,
   },
 ];
+
+export function getStoredReels(): ReelItem[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('smart_menu_reels_catalog');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+  return DEFAULT_REELS_DATA;
+}
+
+export function saveStoredReels(reels: ReelItem[]): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('smart_menu_reels_catalog', JSON.stringify(reels));
+    window.dispatchEvent(new Event('smart_menu_reels_updated'));
+  }
+}
 
 interface ReelsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOrderDish: (dishName: string) => void;
+  onOrderDish: (reel: ReelItem) => void;
 }
 
 export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalProps) {
+  const [reels, setReels] = useState<ReelItem[]>(() => {
+    const list = getStoredReels().filter((r) => r.isActive !== false);
+    return list.length > 0 ? list : DEFAULT_REELS_DATA;
+  });
+
+  useEffect(() => {
+    const handleReelsUpdated = () => {
+      const list = getStoredReels().filter((r) => r.isActive !== false);
+      setReels(list.length > 0 ? list : DEFAULT_REELS_DATA);
+    };
+
+    window.addEventListener('smart_menu_reels_updated', handleReelsUpdated);
+    window.addEventListener('storage', handleReelsUpdated);
+    return () => {
+      window.removeEventListener('smart_menu_reels_updated', handleReelsUpdated);
+      window.removeEventListener('storage', handleReelsUpdated);
+    };
+  }, []);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [likedReels, setLikedReels] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>(() =>
-    REELS_DATA.reduce((acc, r) => ({ ...acc, [r.id]: r.initialLikes }), {})
+    reels.reduce((acc, r) => ({ ...acc, [r.id]: r.initialLikes }), {})
   );
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
@@ -152,7 +198,7 @@ export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalP
   const containerRef = useRef<HTMLDivElement | null>(null);
   const touchStartY = useRef<number | null>(null);
 
-  const currentReel = REELS_DATA[currentIndex];
+  const currentReel = reels[currentIndex] || reels[0] || DEFAULT_REELS_DATA[0];
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -211,7 +257,7 @@ export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalP
 
   const handleVideoEnded = () => {
     // Automatically transition to next reel
-    if (currentIndex < REELS_DATA.length - 1) {
+    if (currentIndex < reels.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
       // Loop back to first reel
@@ -284,13 +330,13 @@ export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalP
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
     } else {
-      setCurrentIndex(REELS_DATA.length - 1);
+      setCurrentIndex(reels.length - 1);
     }
   };
 
   const goToNextReel = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (currentIndex < REELS_DATA.length - 1) {
+    if (currentIndex < reels.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
       setCurrentIndex(0);
@@ -505,35 +551,34 @@ export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalP
             </div>
           </div>
 
-          {/* Featured Dish Card with 1-Click Order / View in Menu */}
-          <div className="p-2.5 rounded-2xl bg-zinc-900/90 backdrop-blur-xl border border-white/15 flex items-center justify-between shadow-xl">
-            <div className="flex items-center gap-2.5 min-w-0 pr-2">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-sm shrink-0">
-                <span>{currentReel.icon}</span>
+          {/* Featured Food Dish Card: ONLY food menu items have Order Now button */}
+          {currentReel.isFood && currentReel.dishName && (
+            <div className="p-2.5 rounded-2xl bg-zinc-900/90 backdrop-blur-xl border border-white/15 flex items-center justify-between shadow-xl">
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-sm shrink-0">
+                  <span>{currentReel.icon || '🍽️'}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{currentReel.dishName}</p>
+                  {currentReel.dishPrice > 0 && (
+                    <p className="text-[11px] font-black text-amber-400">
+                      {currentReel.dishPrice}{' '}
+                      <span className="text-[9px] font-semibold text-white/60">ETB</span>
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate">{currentReel.dishName}</p>
-                <p className="text-[11px] font-black text-amber-400">
-                  {currentReel.dishPrice} <span className="text-[9px] font-semibold text-white/60">ETB</span>
-                </p>
-              </div>
-            </div>
 
-            {currentReel.isFood ? (
               <button
                 type="button"
-                onClick={() => onOrderDish(currentReel.dishName)}
+                onClick={() => onOrderDish(currentReel)}
                 className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/30 transition active:scale-95 cursor-pointer shrink-0"
               >
                 <ShoppingBag className="w-3.5 h-3.5" />
                 <span>Order Now &rarr;</span>
               </button>
-            ) : (
-              <span className="px-3 py-1.5 rounded-xl bg-white/10 text-white/70 text-[11px] font-bold border border-white/10 shrink-0">
-                Craft Drink
-              </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

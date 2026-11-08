@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import { Category, MenuItem, TableValidationResponse } from '@/lib/types';
 import { CartProvider, useCart } from '@/context/CartContext';
 import sound from '@/lib/sound';
-import ReelsModal from '@/components/customer/ReelsModal';
+import ReelsModal, { ReelItem } from '@/components/customer/ReelsModal';
 import PaymentModal, { PaymentProvider } from '@/components/customer/PaymentModal';
 import {
   BellRing,
@@ -442,9 +442,10 @@ function CustomerMenuContent() {
     syncBrowserUrl();
   };
 
-  const handleOrderDishFromReels = (dishName: string) => {
-    handleCloseReels();
-    handleOpenMenu();
+  const handleOrderDishFromReels = (reel: ReelItem | string) => {
+    const dishName = typeof reel === 'string' ? reel : reel.dishName;
+    const dishPrice = typeof reel === 'string' ? 350 : reel.dishPrice;
+    const dishImage = typeof reel === 'string' ? undefined : reel.posterSrc;
 
     let foundItem: MenuItem | undefined;
     let targetCatId: string | undefined;
@@ -462,14 +463,27 @@ function CustomerMenuContent() {
       }
     }
 
-    if (foundItem) {
-      if (targetCatId) setActiveCategory(targetCatId);
-      addItem(foundItem);
-      try {
-        sound.playSuccessDing();
-      } catch {}
-      setIsCartOpen(true);
+    if (!foundItem) {
+      foundItem = {
+        id: `reel-dish-${dishName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        restaurantId: tableData?.restaurant?.id || 'rest-addis-001',
+        categoryId: 'cat-mains',
+        name: dishName,
+        price: dishPrice || 350,
+        imageUrl: dishImage || 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=80',
+        isAvailable: true,
+      };
     }
+
+    if (targetCatId) setActiveCategory(targetCatId);
+    addItem(foundItem);
+    try {
+      sound.playSuccessDing();
+    } catch {}
+
+    handleCloseReels();
+    handleOpenMenu();
+    setIsCartOpen(true);
   };
 
   const handleOpenReels = (e?: React.SyntheticEvent) => {
