@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { Category, MenuItem, TableValidationResponse } from '@/lib/types';
 import { CartProvider, useCart } from '@/context/CartContext';
 import sound from '@/lib/sound';
+import ReelsModal from '@/components/customer/ReelsModal';
 import {
   BellRing,
   Receipt,
@@ -117,6 +118,26 @@ const DEFAULT_MENU_CATEGORIES: Category[] = [
         imageUrl: 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?auto=format&fit=crop&w=600&q=80',
         isAvailable: true,
       },
+      {
+        id: 'mi-grill-2',
+        restaurantId: 'rest-addis-001',
+        categoryId: 'cat-grills',
+        name: 'Special Shekla Tibs',
+        description: 'Sizzling prime beef cubes tossed with fresh rosemary, jalapeños, and spiced niter kibbeh.',
+        price: 450,
+        imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=600&q=80',
+        isAvailable: true,
+      },
+      {
+        id: 'mi-pizza-1',
+        restaurantId: 'rest-addis-001',
+        categoryId: 'cat-grills',
+        name: 'Margherita Pizza',
+        description: 'Stone-baked thin sourdough crust with San Marzano tomatoes, whole milk mozzarella, and basil.',
+        price: 400,
+        imageUrl: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?auto=format&fit=crop&w=600&q=80',
+        isAvailable: true,
+      },
     ],
   },
   {
@@ -133,6 +154,26 @@ const DEFAULT_MENU_CATEGORIES: Category[] = [
         description: 'Freshly roasted Yirgacheffe coffee beans brewed in clay jebena, served with popcorn.',
         price: 90,
         imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80',
+        isAvailable: true,
+      },
+      {
+        id: 'mi-drink-2',
+        restaurantId: 'rest-addis-001',
+        categoryId: 'cat-drinks',
+        name: 'Jebena Buna Ceremony',
+        description: 'Traditional slow-brewed Ethiopian highland coffee served in sini cups with incense ceremony.',
+        price: 50,
+        imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80',
+        isAvailable: true,
+      },
+      {
+        id: 'mi-drink-3',
+        restaurantId: 'rest-addis-001',
+        categoryId: 'cat-drinks',
+        name: 'Tropical Passion Spritzer',
+        description: 'Passionfruit puree, hand-muddled mint, and sparkling citrus soda double-shaken over ice.',
+        price: 180,
+        imageUrl: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=600&q=80',
         isAvailable: true,
       },
     ],
@@ -368,6 +409,36 @@ function CustomerMenuContent() {
   const handleCloseReview = () => {
     setIsReviewOpen(false);
     syncBrowserUrl();
+  };
+
+  const handleOrderDishFromReels = (dishName: string) => {
+    handleCloseReels();
+    handleOpenMenu();
+
+    let foundItem: MenuItem | undefined;
+    let targetCatId: string | undefined;
+
+    for (const cat of categories) {
+      const item = cat.items?.find(
+        (i) =>
+          i.name.toLowerCase().includes(dishName.toLowerCase()) ||
+          dishName.toLowerCase().includes(i.name.toLowerCase())
+      );
+      if (item) {
+        foundItem = item;
+        targetCatId = cat.id;
+        break;
+      }
+    }
+
+    if (foundItem) {
+      if (targetCatId) setActiveCategory(targetCatId);
+      addItem(foundItem);
+      try {
+        sound.playSuccessDing();
+      } catch {}
+      setIsCartOpen(true);
+    }
   };
 
   const handleOpenReels = (e?: React.SyntheticEvent) => {
@@ -877,53 +948,11 @@ function CustomerMenuContent() {
         )}
 
         {/* Reels Modal */}
-        {isReelsOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-sm bg-[#090d1e] text-white rounded-3xl p-5 shadow-2xl border border-slate-800 space-y-4 animate-in zoom-in-95">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Clapperboard className="w-5 h-5 text-purple-400" />
-                  <h3 className="text-sm font-bold text-white">Kitchen Reels & Stories</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCloseReels}
-                  className="p-1 rounded-full text-slate-400 hover:text-white transition cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="rounded-2xl bg-gradient-to-br from-purple-900/60 to-slate-900 border border-purple-500/30 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-purple-300">
-                  <Flame className="w-4 h-4 text-orange-400" />
-                  <span>Chef&apos;s Secret &bull; Signature Kitfo</span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Our chef warms lean prime beef in herb-clarified niter kibbeh and small-batch mitmita roasted right in Addis Ababa.
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                  <span>Traditional Clay Pot Jebena Coffee</span>
-                  <span className="text-amber-400 font-bold">&bull; 100% Organic</span>
-                </div>
-              </div>
-
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleCloseReels();
-                    handleOpenMenu();
-                  }}
-                  className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-600/30 transition cursor-pointer"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Explore Menu & Order</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ReelsModal
+          isOpen={isReelsOpen}
+          onClose={handleCloseReels}
+          onOrderDish={handleOrderDishFromReels}
+        />
       </div>
     );
   }
@@ -1383,6 +1412,13 @@ function CustomerMenuContent() {
           </div>
         </div>
       )}
+
+      {/* Reels Modal */}
+      <ReelsModal
+        isOpen={isReelsOpen}
+        onClose={handleCloseReels}
+        onOrderDish={handleOrderDishFromReels}
+      />
     </div>
   );
 }
