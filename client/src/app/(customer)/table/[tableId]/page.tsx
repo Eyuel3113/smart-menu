@@ -1073,13 +1073,6 @@ function CustomerMenuContent() {
             <h2 className="text-lg sm:text-xl font-black text-white drop-shadow-md">
               {restaurantName}
             </h2>
-
-            {/* Pagination Dots */}
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="w-4 h-1.5 bg-blue-500 rounded-full" />
-              <span className="w-1.5 h-1.5 bg-white/50 rounded-full" />
-              <span className="w-1.5 h-1.5 bg-white/50 rounded-full" />
-            </div>
           </div>
         </div>
 

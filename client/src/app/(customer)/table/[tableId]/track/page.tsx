@@ -26,6 +26,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import PaymentModal, { PaymentProvider } from '@/components/customer/PaymentModal';
 
@@ -265,28 +267,88 @@ export default function OrderTrackPage() {
   const isAllCompleted =
     sessionCompleted || (orders.length > 0 && activeOrders.length === 0 && completedOrders.length > 0);
 
-  // Derive overall session progress step
-  const hasServedOrder = activeOrders.some((o) => o.status === 'SERVED');
-  const getOverallStepIndex = (): number => {
-    if (activeOrders.length === 0) {
-      if (isAllCompleted) return 3; // Served & Enjoy
-      return 0;
-    }
+  // 10-second real-time timer tick for reactive relative times ("Just now", "2 min ago")
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(timer);
+  }, []);
 
-    if (activeOrders.every((o) => o.status === 'SERVED') || hasServedOrder) {
-      if (!activeOrders.some((o) => ['PENDING', 'ACCEPTED', 'PREPARING'].includes(o.status))) {
-        return 3; // Step 4: Served & Enjoy
+  // Format real clock time accurately using local system time (no hardcoded fallbacks)
+  const formatClockTime = (dateStr?: string | Date) => {
+    if (!dateStr) {
+      return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) {
+        return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
       }
+      return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    } catch {
+      return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
     }
+  };
 
-    if (activeOrders.some((o) => o.status === 'READY')) {
+  // Real-time relative duration calculation ("Just now", "3 min ago")
+  const getElapsedString = (dateStr?: string | Date) => {
+    if (!dateStr) return 'Just now';
+    try {
+      const diffMs = Math.max(0, now - new Date(dateStr).getTime());
+      const diffSecs = Math.floor(diffMs / 1000);
+      if (diffSecs < 45) return 'Just now';
+      const mins = Math.floor(diffSecs / 60);
+      if (mins < 60) return `${mins} min ago`;
+      const hrs = Math.floor(mins / 60);
+      return `${hrs}h ago`;
+    } catch {
+      return 'Just now';
+    }
+  };
+
+  // Chronologically sort all session orders into rounds (Round 1 = first order placed)
+  const sessionOrders = [...orders]
+    .filter((o) => o.status !== 'REJECTED')
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  // Map into rounds with 3 stages (0: Placed, 1: Kitchen, 2: Food Ready)
+  const allRounds = sessionOrders.map((order, idx) => {
+    const step =
+      order.status === 'READY' || order.status === 'SERVED' || order.status === 'COMPLETED'
+        ? 2
+        : ['ACCEPTED', 'PREPARING'].includes(order.status)
+        ? 1
+        : 0;
+
+    return {
+      roundNumber: idx + 1,
+      order,
+      step,
+      isLatest: idx === sessionOrders.length - 1,
+    };
+  });
+
+  // User requirement: "make slider to the all round timeline but same ui like now and make the newest round first..."
+  const displayRounds = [...allRounds].reverse();
+  const [selectedRoundIdx, setSelectedRoundIdx] = useState<number>(0);
+
+  // Active round safely bound to selection (defaults to index 0: newest round)
+  const activeRound = displayRounds[selectedRoundIdx] || displayRounds[0] || {
+    roundNumber: 1,
+    order: orders[0],
+    step: 0,
+    isLatest: true,
+  };
+
+  // Overall session step (3 stages: 0=Placed, 1=Kitchen, 2=Ready)
+  const getOverallStepIndex = (): number => {
+    if (activeOrders.length === 0) return 0;
+    if (activeOrders.some((o) => o.status === 'READY' || o.status === 'SERVED')) {
       return 2; // Step 3: Food Ready
     }
-
     if (activeOrders.some((o) => ['ACCEPTED', 'PREPARING'].includes(o.status))) {
       return 1; // Step 2: In Kitchen
     }
-
     return 0; // Step 1: Order Placed
   };
 
@@ -298,32 +360,12 @@ export default function OrderTrackPage() {
   const tableNumber =
     orders[0]?.table?.tableNumber || searchParams.get('tableNumber') || '1';
 
-  // Format timestamps nicely matching mockup
-  const formatTime = (dateStr?: string | Date) => {
-    if (!dateStr) return '12:46 PM';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    } catch {
-      return '12:46 PM';
-    }
-  };
-
-  const getElapsedString = (dateStr?: string | Date) => {
-    if (!dateStr) return 'Just now';
-    try {
-      const diffMs = Date.now() - new Date(dateStr).getTime();
-      const mins = Math.max(1, Math.floor(diffMs / 60000));
-      return `${mins} min ago`;
-    } catch {
-      return 'Just now';
-    }
-  };
-
-  const earliestOrder = orders[0];
-  const startTime = earliestOrder ? formatTime(earliestOrder.createdAt) : '12:46 PM';
-  const latestOrder = orders[orders.length - 1] || earliestOrder;
-  const timeElapsed = latestOrder ? getElapsedString(latestOrder.updatedAt || latestOrder.createdAt) : '3 min ago';
+  const earliestOrder = sessionOrders[0];
+  const startTime = earliestOrder ? formatClockTime(earliestOrder.createdAt) : formatClockTime(new Date());
+  const latestOrder = sessionOrders[sessionOrders.length - 1] || earliestOrder;
+  const timeElapsed = latestOrder
+    ? getElapsedString(latestOrder.updatedAt || latestOrder.createdAt)
+    : 'Just now';
 
   if (loading) {
     return (
@@ -437,7 +479,7 @@ export default function OrderTrackPage() {
     );
   }
 
-  // Main status header copy derived from current step
+  // Main status header copy derived from current step (3 stages)
   const stageHeaders = [
     {
       title: 'Order Placed!',
@@ -457,15 +499,9 @@ export default function OrderTrackPage() {
       icon: CelebrationFlagIcon,
       badgeText: timeElapsed,
     },
-    {
-      title: 'Served & Enjoy!',
-      desc: 'Dishes delivered to your table. Enjoy your meal!',
-      icon: CheckCircle,
-      badgeText: 'Delivered',
-    },
   ];
 
-  const currentStage = stageHeaders[currentStep];
+  const currentStage = stageHeaders[Math.min(currentStep, 2)];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#edf2f8] via-[#e8eff7] to-[#e0e9f5] text-slate-900 font-sans pb-24">
@@ -504,8 +540,6 @@ export default function OrderTrackPage() {
                   <CelebrationFlagIcon className="w-6 h-6 stroke-[2.2] text-blue-600" />
                 ) : currentStep === 1 ? (
                   <ChefHat className="w-6 h-6 stroke-[2.2] text-blue-600" />
-                ) : currentStep === 3 ? (
-                  <CheckCircle className="w-6 h-6 stroke-[2.2] text-emerald-600" />
                 ) : (
                   <Clock className="w-6 h-6 stroke-[2.2] text-blue-600" />
                 )}
@@ -529,8 +563,8 @@ export default function OrderTrackPage() {
           </div>
         </div>
 
-        {/* 3. Session Progress Timeline Card (Matching Image 2 Stepper) */}
-        <div className="rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-100 p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-6">
+        {/* 3. Session Progress Timeline Card (Matching Image 2 Stepper with Round Slider) */}
+        <div className="rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-100 p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-5">
           {/* Header row */}
           <div className="flex items-center justify-between pb-1">
             <div className="flex items-center gap-2">
@@ -540,31 +574,91 @@ export default function OrderTrackPage() {
               </h2>
             </div>
             <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-100/90 text-blue-600 text-xs font-bold">
-              {activeOrders.length} {activeOrders.length === 1 ? 'Round' : 'Rounds'}
+              {allRounds.length} {allRounds.length === 1 ? 'Round' : 'Rounds'}
             </span>
           </div>
 
-          {/* Stepper Timeline List */}
+          {/* Round Slider Controls (Rendered if there is more than 1 round, newest round first) */}
+          {displayRounds.length > 1 && (
+            <div className="pt-1 pb-3 border-b border-slate-100 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                <span>Select Dining Round:</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={selectedRoundIdx === 0}
+                    onClick={() => setSelectedRoundIdx((prev) => Math.max(0, prev - 1))}
+                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    title="Newer Round"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[11px] font-extrabold text-blue-600 px-1">
+                    Round {activeRound.roundNumber} of {displayRounds.length}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={selectedRoundIdx === displayRounds.length - 1}
+                    onClick={() => setSelectedRoundIdx((prev) => Math.min(displayRounds.length - 1, prev + 1))}
+                    className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    title="Older Round"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Horizontal slider pills with newest round first */}
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                {displayRounds.map((r, idx) => {
+                  const isSel = idx === selectedRoundIdx;
+                  return (
+                    <button
+                      key={r.order.id}
+                      type="button"
+                      onClick={() => setSelectedRoundIdx(idx)}
+                      className={`px-3 py-1.5 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                        isSel
+                          ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/25'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>Round {r.roundNumber}</span>
+                      {r.isLatest && (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
+                            isSel ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          Newest
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Stepper Timeline List (Exact same UI like now, for active round) */}
           <div className="space-y-6 relative pl-1">
             {/* --- STEP 1: Order Placed --- */}
             <div className="flex items-start gap-4 relative">
               {/* Connector Line downwards */}
               <div
                 className={`absolute left-4.5 top-9 w-0.5 h-9 transition-colors duration-500 ${
-                  currentStep > 0 ? 'bg-blue-500' : 'bg-slate-200'
+                  activeRound.step > 0 ? 'bg-blue-500' : 'bg-slate-200'
                 }`}
               />
 
               <div
                 className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                  currentStep > 0
+                  activeRound.step > 0
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : currentStep === 0
-                    ? 'bg-blue-600 text-white ring-4 ring-blue-500/20 font-bold'
-                    : 'bg-slate-100 text-slate-400'
+                    : 'bg-blue-600 text-white ring-4 ring-blue-500/20 font-bold'
                 }`}
               >
-                {currentStep > 0 ? (
+                {activeRound.step > 0 ? (
                   <Check className="w-4 h-4 stroke-[3] text-white" />
                 ) : (
                   <Clock className="w-4 h-4 text-white" />
@@ -577,7 +671,7 @@ export default function OrderTrackPage() {
                     Order Placed
                   </h3>
                   <span className="text-xs font-semibold text-slate-400">
-                    {startTime}
+                    {formatClockTime(activeRound.order?.createdAt)}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5 font-medium">
@@ -591,20 +685,20 @@ export default function OrderTrackPage() {
               {/* Connector Line downwards */}
               <div
                 className={`absolute left-4.5 top-9 w-0.5 h-9 transition-colors duration-500 ${
-                  currentStep > 1 ? 'bg-amber-400' : 'bg-slate-200'
+                  activeRound.step > 1 ? 'bg-amber-400' : 'bg-slate-200'
                 }`}
               />
 
               <div
                 className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                  currentStep > 1
+                  activeRound.step > 1
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : currentStep === 1
+                    : activeRound.step === 1
                     ? 'bg-blue-100 text-blue-600 ring-4 ring-blue-500/20 font-bold'
                     : 'bg-slate-100 text-slate-400'
                 }`}
               >
-                {currentStep > 1 ? (
+                {activeRound.step > 1 ? (
                   <Check className="w-4 h-4 stroke-[3] text-white" />
                 ) : (
                   <ChefHat className="w-4 h-4 stroke-[2.2] text-blue-600" />
@@ -617,7 +711,9 @@ export default function OrderTrackPage() {
                     In Kitchen
                   </h3>
                   <span className="text-xs font-semibold text-slate-400">
-                    {currentStep >= 1 ? startTime : '—'}
+                    {activeRound.step >= 1
+                      ? formatClockTime(activeRound.order?.updatedAt || activeRound.order?.createdAt)
+                      : '—'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5 font-medium">
@@ -626,25 +722,18 @@ export default function OrderTrackPage() {
               </div>
             </div>
 
-            {/* --- STEP 3: Food Ready (Active highlighted stage in mockup) --- */}
+            {/* --- STEP 3: Food Ready (Final stage, no connector line downwards) --- */}
             <div className="flex items-start gap-4 relative">
-              {/* Connector Line downwards */}
-              <div
-                className={`absolute left-4.5 top-9 w-0.5 h-9 transition-colors duration-500 ${
-                  currentStep > 2 ? 'bg-blue-500' : 'bg-slate-200'
-                }`}
-              />
-
               <div
                 className={`relative z-10 flex items-center justify-center shrink-0 transition-all ${
-                  currentStep === 2
+                  activeRound.step === 2 && activeRound.order?.status === 'READY'
                     ? 'w-11 h-11 -ml-1 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
-                    : currentStep > 2
+                    : activeRound.step >= 2
                     ? 'w-9 h-9 rounded-full bg-blue-600 text-white shadow-xs'
                     : 'w-9 h-9 rounded-full bg-slate-100 text-slate-400'
                 }`}
               >
-                {currentStep > 2 ? (
+                {activeRound.step >= 2 && activeRound.order?.status !== 'READY' ? (
                   <Check className="w-4 h-4 stroke-[3] text-white" />
                 ) : (
                   <ClocheIcon className="w-5 h-5 text-white" />
@@ -655,56 +744,27 @@ export default function OrderTrackPage() {
                 <div className="flex items-center justify-between">
                   <h3
                     className={`text-sm ${
-                      currentStep === 2
+                      activeRound.step === 2 && activeRound.order?.status === 'READY'
                         ? 'font-black text-[#0a1128]'
                         : 'font-extrabold text-[#0a1128]'
                     }`}
                   >
                     Food Ready
                   </h3>
-                  {currentStep === 2 ? (
+                  {activeRound.step === 2 && activeRound.order?.status === 'READY' ? (
                     <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-wider">
                       ACTIVE STAGE
                     </span>
                   ) : (
                     <span className="text-xs font-semibold text-slate-400">
-                      {currentStep > 2 ? timeElapsed : '—'}
+                      {activeRound.step >= 2
+                        ? formatClockTime(activeRound.order?.updatedAt || activeRound.order?.createdAt)
+                        : '—'}
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5 font-medium">
                   Plated & heading to your table
-                </p>
-              </div>
-            </div>
-
-            {/* --- STEP 4: Served & Enjoy --- */}
-            <div className="flex items-start gap-4 relative">
-              <div
-                className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                  currentStep === 3
-                    ? 'bg-emerald-600 text-white ring-4 ring-emerald-500/20 font-bold shadow-xs'
-                    : 'bg-slate-100 text-slate-400'
-                }`}
-              >
-                <Check className="w-4 h-4 stroke-[2.2] text-slate-400" />
-              </div>
-
-              <div className="flex-1 min-w-0 pt-0.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-extrabold text-sm text-[#0a1128]">
-                    Served & Enjoy
-                  </h3>
-                  {currentStep === 3 ? (
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
-                      ACTIVE STAGE
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 text-sm font-semibold">—</span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5 font-medium">
-                  Delivered to your table
                 </p>
               </div>
             </div>

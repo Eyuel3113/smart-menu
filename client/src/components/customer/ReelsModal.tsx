@@ -31,6 +31,7 @@ export interface ReelItem {
   dishName: string;
   dishPrice: number;
   category: string;
+  isFood: boolean;
   initialLikes: number;
   videoSrc: string;
   fallbackVideoSrc?: string;
@@ -51,6 +52,7 @@ const REELS_DATA: ReelItem[] = [
     dishName: 'Jebena Buna Ceremony',
     dishPrice: 50,
     category: 'Beverages',
+    isFood: false,
     initialLikes: 1248,
     videoSrc:
       'https://upload.wikimedia.org/wikipedia/commons/transcoded/9/95/Traditional_Ethiopian_Coffee_Roasting_Ceremony.webm/Traditional_Ethiopian_Coffee_Roasting_Ceremony.webm.480p.vp9.webm',
@@ -72,6 +74,7 @@ const REELS_DATA: ReelItem[] = [
     dishName: 'Special Shekla Tibs',
     dishPrice: 450,
     category: 'Main Grill',
+    isFood: true,
     initialLikes: 2890,
     videoSrc:
       'https://upload.wikimedia.org/wikipedia/commons/transcoded/6/63/Chicken_%26_Beef_Barbecue_Skewers_at_the_Backyard.webm/Chicken_%26_Beef_Barbecue_Skewers_at_the_Backyard.webm.480p.vp9.webm',
@@ -93,6 +96,7 @@ const REELS_DATA: ReelItem[] = [
     dishName: 'Margherita Pizza',
     dishPrice: 400,
     category: 'Pizza & Oven',
+    isFood: true,
     initialLikes: 1845,
     videoSrc:
       'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a4/Pizza_sequence.webm/Pizza_sequence.webm.480p.vp9.webm',
@@ -114,6 +118,7 @@ const REELS_DATA: ReelItem[] = [
     dishName: 'Tropical Passion Spritzer',
     dishPrice: 180,
     category: 'Bar & Mocktails',
+    isFood: false,
     initialLikes: 1420,
     videoSrc:
       'https://upload.wikimedia.org/wikipedia/commons/transcoded/9/9b/The_Best_Way_To_Shake_A_Cocktail_-_Drinks_Made_Easy.webm/The_Best_Way_To_Shake_A_Cocktail_-_Drinks_Made_Easy.webm.480p.vp9.webm',
@@ -145,8 +150,41 @@ export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalP
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   const currentReel = REELS_DATA[currentIndex];
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diff = touchStartY.current - touchEndY;
+    if (diff > 45) {
+      // Swiped UP -> Next reel
+      goToNextReel();
+    } else if (diff < -45) {
+      // Swiped DOWN -> Previous reel
+      goToPrevReel();
+    }
+    touchStartY.current = null;
+  };
+
+  // Wheel scroll debounce for desktop trackpad/mouse
+  const lastWheelTime = useRef<number>(0);
+  const handleWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTime.current < 500) return;
+    if (e.deltaY > 30) {
+      lastWheelTime.current = now;
+      goToNextReel();
+    } else if (e.deltaY < -30) {
+      lastWheelTime.current = now;
+      goToPrevReel();
+    }
+  };
 
   // Auto-play when reel changes
   useEffect(() => {
@@ -285,31 +323,13 @@ export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalP
       {/* Container simulating vertical mobile reel */}
       <div
         ref={containerRef}
-        className="relative w-full h-full sm:h-[92vh] sm:max-h-[820px] sm:max-w-[430px] sm:rounded-3xl bg-black overflow-hidden shadow-2xl flex flex-col justify-between border border-slate-800"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
+        className="relative w-full h-full sm:h-[92vh] sm:max-h-[820px] sm:max-w-[430px] sm:rounded-3xl bg-black overflow-hidden shadow-2xl flex flex-col justify-between border border-slate-800 touch-pan-y"
       >
-        {/* --- 1. SEGMENTED STORY PROGRESS TICKS (TOP) --- */}
-        <div className="absolute top-0 left-0 right-0 z-30 pt-3 px-3 flex gap-1.5 pointer-events-none">
-          {REELS_DATA.map((reel, idx) => {
-            const isPast = idx < currentIndex;
-            const isCurrent = idx === currentIndex;
-            return (
-              <div
-                key={reel.id}
-                className="h-1 flex-1 bg-white/25 rounded-full overflow-hidden backdrop-blur-xs"
-              >
-                <div
-                  className={`h-full bg-white transition-all duration-100 ${
-                    isPast ? 'w-full' : isCurrent ? '' : 'w-0'
-                  }`}
-                  style={{ width: isCurrent ? `${videoProgress}%` : isPast ? '100%' : '0%' }}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {/* --- 2. TOP HEADER OVERLAY --- */}
-        <div className="absolute top-6 left-0 right-0 z-30 px-4 flex items-center justify-between text-white drop-shadow-md">
+        {/* --- TOP HEADER OVERLAY --- */}
+        <div className="absolute top-4 left-0 right-0 z-30 px-4 flex items-center justify-between text-white drop-shadow-md">
           {/* Creator Profile */}
           <div className="flex items-center gap-2.5">
             <div
@@ -499,17 +519,24 @@ export default function ReelsModal({ isOpen, onClose, onOrderDish }: ReelsModalP
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => onOrderDish(currentReel.dishName)}
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition active:scale-95 cursor-pointer shrink-0"
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Order Dish</span>
-            </button>
+            {currentReel.isFood ? (
+              <button
+                type="button"
+                onClick={() => onOrderDish(currentReel.dishName)}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/30 transition active:scale-95 cursor-pointer shrink-0"
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>Order Now &rarr;</span>
+              </button>
+            ) : (
+              <span className="px-3 py-1.5 rounded-xl bg-white/10 text-white/70 text-[11px] font-bold border border-white/10 shrink-0">
+                Craft Drink
+              </span>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 }
+
