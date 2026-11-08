@@ -13,7 +13,8 @@ import {
   UtensilsCrossed,
   BarChart3,
   Settings,
-  Bell,
+  Globe,
+  Languages,
   LogOut,
   ChevronDown,
   RefreshCw,
@@ -33,11 +34,27 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
   const router = useRouter();
   const { theme, toggleTheme, isDark } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifNotice, setNotifNotice] = useState<string | null>(null);
+  const [currentLocale, setCurrentLocale] = useState<'en' | 'am' | 'om'>('en');
+  const [localeNotice, setLocaleNotice] = useState<string | null>(null);
 
   const handleLogout = () => {
     api.auth.logout();
     router.push('/login');
+  };
+
+  const locales: Record<'en' | 'am' | 'om', { label: string; name: string }> = {
+    en: { label: 'EN', name: 'English (ET)' },
+    am: { label: 'አማ', name: 'Amharic (አማርኛ)' },
+    om: { label: 'OM', name: 'Afaan Oromoo' },
+  };
+
+  const handleToggleLocale = () => {
+    const order: Array<'en' | 'am' | 'om'> = ['en', 'am', 'om'];
+    const nextIdx = (order.indexOf(currentLocale) + 1) % order.length;
+    const nextLocale = order[nextIdx];
+    setCurrentLocale(nextLocale);
+    setLocaleNotice(`Interface language set to ${locales[nextLocale].name}`);
+    setTimeout(() => setLocaleNotice(null), 3000);
   };
 
   const navLinks = [
@@ -48,7 +65,7 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
     { href: '/manager/transactions', label: 'Payments', icon: Receipt },
     { href: '/kitchen', label: 'Kitchen KDS', icon: UtensilsCrossed },
     { href: '/manager/analytics', label: 'Analytics', icon: BarChart3 },
-    { href: '/manager/settings', label: 'CMS Branding', icon: Settings },
+    { href: '/manager/settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -138,25 +155,25 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
                 </span>
               </button>
 
-              {/* Notifications Toggle */}
+              {/* Localization Toggle */}
               <button
                 type="button"
-                onClick={() => {
-                  setNotifNotice('Live notification feed active. All kitchen and table orders synced.');
-                  setTimeout(() => setNotifNotice(null), 3500);
-                }}
+                onClick={handleToggleLocale}
                 className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-slate-700 dark:text-blue-200 hover:bg-slate-100 dark:hover:bg-blue-900/30 transition cursor-pointer"
+                title="Switch Language"
               >
                 <div className="flex items-center gap-2">
-                  <Bell className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Notifications</span>
+                  <Languages className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Localization</span>
                 </div>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">
+                  {locales[currentLocale].label}
+                </span>
               </button>
 
-              {notifNotice && (
+              {localeNotice && (
                 <div className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/40 text-[10px] text-blue-700 dark:text-blue-300 font-semibold animate-in fade-in">
-                  {notifNotice}
+                  {localeNotice}
                 </div>
               )}
 
@@ -166,7 +183,7 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
                 onClick={() => setProfileOpen(false)}
               >
                 <Settings className="w-3.5 h-3.5 text-blue-500" />
-                <span>CMS Branding & Settings</span>
+                <span>Settings</span>
               </Link>
 
               <button

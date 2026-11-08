@@ -42,6 +42,8 @@ export class TableService {
             bannerUrl: true,
             address: true,
             phone: true,
+            showReviewShower: true,
+            paymentTiming: true,
           },
         },
         area: {

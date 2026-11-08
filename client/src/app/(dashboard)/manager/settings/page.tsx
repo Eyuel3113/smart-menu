@@ -21,6 +21,11 @@ import {
   Coins,
   Sparkles,
   Eye,
+  Star,
+  Receipt,
+  CreditCard,
+  Sliders,
+  Check,
 } from 'lucide-react';
 
 export default function RestaurantSettingsPage() {
@@ -38,6 +43,8 @@ export default function RestaurantSettingsPage() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [currency, setCurrency] = useState('ETB');
+  const [showReviewShower, setShowReviewShower] = useState(true);
+  const [paymentTiming, setPaymentTiming] = useState<'FINAL' | 'PRE_ORDER'>('FINAL');
 
   const loadBranding = async () => {
     try {
@@ -57,6 +64,19 @@ export default function RestaurantSettingsPage() {
       setPhone(data.phone || '');
       setAddress(data.address || '');
       setCurrency(data.currency || 'ETB');
+      setShowReviewShower(data.showReviewShower !== false);
+      setPaymentTiming((data.paymentTiming as any) === 'PRE_ORDER' ? 'PRE_ORDER' : 'FINAL');
+
+      // Sync local cache
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(
+          'smart_menu_experience_settings',
+          JSON.stringify({
+            showReviewShower: data.showReviewShower !== false,
+            paymentTiming: (data.paymentTiming as any) === 'PRE_ORDER' ? 'PRE_ORDER' : 'FINAL',
+          })
+        );
+      }
     } catch (err: any) {
       console.warn('Failed to load restaurant branding:', err);
       setErrorMsg(err.message || 'Failed to load restaurant configuration');
@@ -83,9 +103,20 @@ export default function RestaurantSettingsPage() {
           phone: phone.trim() || null,
           address: address.trim() || null,
           currency,
+          showReviewShower,
+          paymentTiming,
         });
 
         setBranding(updated);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(
+            'smart_menu_experience_settings',
+            JSON.stringify({
+              showReviewShower,
+              paymentTiming,
+            })
+          );
+        }
         setSavedSuccess(true);
         sound.playSuccessDing();
         setTimeout(() => setSavedSuccess(false), 3500);
@@ -115,10 +146,10 @@ export default function RestaurantSettingsPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-[#0f172a] dark:text-white tracking-tight">
-                CMS & Restaurant Branding
+                Settings
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                Configure your brand identity, visuals, and venue details across guest table sessions.
+                Manage restaurant branding, guest experience display toggles, and payment ordering policy.
               </p>
             </div>
           </div>
@@ -356,6 +387,138 @@ export default function RestaurantSettingsPage() {
               </div>
             </div>
 
+            {/* Section 4: Guest Dining Experience & Payment Policy */}
+            <div className="bg-white/80 dark:bg-[#12162a]/90 backdrop-blur-md rounded-2xl border border-white/80 dark:border-blue-900/40 shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-6 space-y-6">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <Sliders className="w-4 h-4 stroke-[2]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-[#0f172a] dark:text-white uppercase tracking-wider">
+                    Experience & Order Policy
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Control menu top widgets and diner checkout settlement flow
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggle 1: Review Shower in Top of Menu */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      Review Shower in Top of Menu
+                    </span>
+                    <span
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        showReviewShower
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                          : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                      }`}
+                    >
+                      {showReviewShower ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl">
+                    Display the customer rating badge (&ldquo;⭐ 4.8 • 2.5k reviews&rdquo;) and &ldquo;Leave a Review&rdquo; button at the top header of the diner menu.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowReviewShower(!showReviewShower)}
+                  className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                    showReviewShower ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                  role="switch"
+                  aria-checked={showReviewShower}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      showReviewShower ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Toggle 2: Payment Policy (Final Settlement vs Pay Before Commit Order) */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                    Payment Timing & Order Settlement Mode
+                  </label>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Choose whether diners settle their bill at the final conclusion or must pay before committing each order round.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Mode 1: Final Settlement */}
+                  <div
+                    onClick={() => setPaymentTiming('FINAL')}
+                    className={`p-4 rounded-2xl border-2 transition cursor-pointer relative ${
+                      paymentTiming === 'FINAL'
+                        ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30 shadow-md shadow-blue-500/10'
+                        : 'border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Receipt className="w-5 h-5 stroke-[2]" />
+                      </div>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                        Default
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Pay in the Final
+                      </h3>
+                      {paymentTiming === 'FINAL' && (
+                        <Check className="w-4 h-4 text-blue-600 stroke-[3]" />
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Diners order dishes freely across rounds, dine first, and settle the accumulated check at the end before table checkout.
+                    </p>
+                  </div>
+
+                  {/* Mode 2: Pay Before Commit Order */}
+                  <div
+                    onClick={() => setPaymentTiming('PRE_ORDER')}
+                    className={`p-4 rounded-2xl border-2 transition cursor-pointer relative ${
+                      paymentTiming === 'PRE_ORDER'
+                        ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/30 shadow-md shadow-emerald-500/10'
+                        : 'border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <CreditCard className="w-5 h-5 stroke-[2]" />
+                      </div>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        Pre-Payment
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Pay Before Commit Order
+                      </h3>
+                      {paymentTiming === 'PRE_ORDER' && (
+                        <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Instant upfront USSD push (Telebirr / CBE Birr / Awash). Diners must complete payment before the order is sent to the kitchen.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Submit Action CTA */}
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -364,7 +527,7 @@ export default function RestaurantSettingsPage() {
                 className="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md shadow-blue-500/25 active:scale-95 transition cursor-pointer disabled:opacity-50"
               >
                 <Save className="w-4 h-4 stroke-[2.2]" />
-                <span>{isPending ? 'Saving Changes...' : 'Save Branding Configuration'}</span>
+                <span>{isPending ? 'Saving Settings...' : 'Save Settings'}</span>
               </button>
             </div>
           </form>

@@ -367,6 +367,10 @@ export default function OrderTrackPage() {
     ? getElapsedString(latestOrder.updatedAt || latestOrder.createdAt)
     : 'Just now';
 
+  const isPrePaid =
+    searchParams.get('paid') === 'true' ||
+    orders.some((o: any) => o.notes?.includes('Pre-Paid'));
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f0f4f9] flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans">
@@ -878,7 +882,17 @@ export default function OrderTrackPage() {
 
         {/* 6. Action Controls: Request Bill / Settle & Order Additional Items */}
         <div className="space-y-3 pt-1">
-          {billRequested ? (
+          {isPrePaid ? (
+            <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center space-y-1 shadow-2xs">
+              <div className="flex items-center justify-center gap-1.5 text-emerald-700 font-extrabold text-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Order Pre-Paid ({grandTotal.toLocaleString()} ETB)</span>
+              </div>
+              <p className="text-[11px] text-emerald-600/90 font-medium">
+                Payment verified upfront via Mobile USSD. No additional bill settlement required.
+              </p>
+            </div>
+          ) : billRequested ? (
             <div className="rounded-3xl bg-amber-50 border border-amber-200 p-5 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

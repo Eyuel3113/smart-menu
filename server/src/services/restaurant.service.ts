@@ -15,6 +15,8 @@ export class RestaurantService {
           bannerUrl: true,
           phone: true,
           address: true,
+          showReviewShower: true,
+          paymentTiming: true,
         },
       });
     }
@@ -29,6 +31,8 @@ export class RestaurantService {
           bannerUrl: true,
           phone: true,
           address: true,
+          showReviewShower: true,
+          paymentTiming: true,
         },
       });
     }
@@ -49,6 +53,8 @@ export class RestaurantService {
       phone?: string | null;
       address?: string | null;
       currency?: string;
+      showReviewShower?: boolean;
+      paymentTiming?: string;
     }
   ) {
     let targetId = restaurantId;
@@ -69,6 +75,8 @@ export class RestaurantService {
         bannerUrl: true,
         phone: true,
         address: true,
+        showReviewShower: true,
+        paymentTiming: true,
         updatedAt: true,
       },
     });

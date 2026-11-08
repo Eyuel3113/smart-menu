@@ -14,6 +14,8 @@ const updateBrandingSchema = z.object({
   phone: z.string().nullable().optional(),
   address: z.string().nullable().optional(),
   currency: z.string().min(1).max(5).optional(),
+  showReviewShower: z.boolean().optional(),
+  paymentTiming: z.enum(['FINAL', 'PRE_ORDER']).optional(),
 });
 
 // Public branding endpoint for customer & staff UI

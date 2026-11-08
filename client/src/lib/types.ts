@@ -26,6 +26,8 @@ export interface Restaurant {
   bannerUrl?: string | null;
   phone?: string | null;
   address?: string | null;
+  showReviewShower?: boolean;
+  paymentTiming?: 'FINAL' | 'PRE_ORDER';
 }
 
 export interface RestaurantBranding {
@@ -36,6 +38,8 @@ export interface RestaurantBranding {
   bannerUrl?: string | null;
   phone?: string | null;
   address?: string | null;
+  showReviewShower?: boolean;
+  paymentTiming?: 'FINAL' | 'PRE_ORDER';
   updatedAt?: string;
 }
 
@@ -189,6 +193,8 @@ export interface TableValidationResponse {
     bannerUrl?: string | null;
     address?: string | null;
     phone?: string | null;
+    showReviewShower?: boolean;
+    paymentTiming?: 'FINAL' | 'PRE_ORDER';
   };
 }
 

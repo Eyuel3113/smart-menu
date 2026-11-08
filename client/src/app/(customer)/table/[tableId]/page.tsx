@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import api from '@/lib/api';
@@ -8,6 +8,7 @@ import { Category, MenuItem, TableValidationResponse } from '@/lib/types';
 import { CartProvider, useCart } from '@/context/CartContext';
 import sound from '@/lib/sound';
 import ReelsModal from '@/components/customer/ReelsModal';
+import PaymentModal, { PaymentProvider } from '@/components/customer/PaymentModal';
 import {
   BellRing,
   Receipt,
@@ -32,6 +33,7 @@ import {
   Eye,
   Info,
   ShieldCheck,
+  CreditCard,
 } from 'lucide-react';
 
 // Fallback seed categories with dishes matching the reference mockup
@@ -311,6 +313,35 @@ function CustomerMenuContent() {
 
   const [isReelsOpen, setIsReelsOpen] = useState<boolean>(() => initialViewParam === 'reels');
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [isPreOrderPaymentOpen, setIsPreOrderPaymentOpen] = useState<boolean>(false);
+
+  // Experience Settings (from table validation or localStorage fallback)
+  const experienceSettings = useMemo(() => {
+    let local: any = null;
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('smart_menu_experience_settings');
+        if (raw) local = JSON.parse(raw);
+      }
+    } catch {}
+
+    const showReviews =
+      tableData?.restaurant?.showReviewShower !== undefined
+        ? tableData.restaurant.showReviewShower
+        : local?.showReviewShower !== undefined
+        ? local.showReviewShower
+        : true;
+
+    const timing =
+      tableData?.restaurant?.paymentTiming ||
+      local?.paymentTiming ||
+      'FINAL';
+
+    return {
+      showReviewShower: showReviews,
+      paymentTiming: timing as 'FINAL' | 'PRE_ORDER',
+    };
+  }, [tableData?.restaurant?.showReviewShower, tableData?.restaurant?.paymentTiming]);
 
   // Check for any active order placed at this table
   useEffect(() => {
@@ -622,7 +653,7 @@ function CustomerMenuContent() {
   };
 
   // 3. Checkout Order Handler
-  const handleCheckout = () => {
+  const commitOrder = (paidNote?: string) => {
     if (cartItems.length === 0) return;
 
     startOrderTransition(async () => {
@@ -633,9 +664,14 @@ function CustomerMenuContent() {
           notes: item.notes,
         }));
 
-        const createdOrder = await api.orders.place(tableId, orderPayload, orderNotes);
+        const finalNotes = paidNote
+          ? `${paidNote} ${orderNotes || ''}`.trim()
+          : orderNotes;
+
+        const createdOrder = await api.orders.place(tableId, orderPayload, finalNotes);
         clearCart();
         setIsCartOpen(false);
+        setIsPreOrderPaymentOpen(false);
 
         let activeToken = token || '';
         try {
@@ -649,12 +685,34 @@ function CustomerMenuContent() {
         } catch {}
 
         const tokenQuery = activeToken ? `&token=${encodeURIComponent(activeToken)}` : '';
-        router.push(`/table/${tableId}/track?orderId=${createdOrder.id}${tokenQuery}`);
+        const paidQuery = paidNote ? '&paid=true' : '';
+        router.push(`/table/${tableId}/track?orderId=${createdOrder.id}${paidQuery}${tokenQuery}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to place order';
         alert(msg);
       }
     });
+  };
+
+  const handleCheckout = () => {
+    if (cartItems.length === 0) return;
+
+    // Check payment timing mode:
+    if (experienceSettings.paymentTiming === 'PRE_ORDER') {
+      setIsPreOrderPaymentOpen(true);
+      return;
+    }
+
+    commitOrder();
+  };
+
+  const handlePreOrderConfirmPayment = async (data: {
+    provider: PaymentProvider;
+    phoneNumber: string;
+    grandTotal: number;
+  }) => {
+    const paidNote = `[Pre-Paid via ${data.provider.toUpperCase()} (${data.phoneNumber})]`;
+    commitOrder(paidNote);
   };
 
   const scrollToCategory = (catId: string) => {
@@ -787,29 +845,31 @@ function CustomerMenuContent() {
               </a>
 
               {/* 2. Leave a Review */}
-              <a
-                href={`/table/${tableId}?view=review${token ? `&token=${encodeURIComponent(token)}` : ''}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleOpenReview();
-                }}
-                className="w-full bg-white rounded-2xl p-4 sm:p-4.5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md border border-slate-100 transition-colors duration-150 cursor-pointer group text-left relative z-20 block no-underline text-inherit"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-50/90 border border-amber-100 text-amber-500 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition">
-                    <Star className="w-6 h-6 stroke-[2]" />
+              {experienceSettings.showReviewShower && (
+                <a
+                  href={`/table/${tableId}?view=review${token ? `&token=${encodeURIComponent(token)}` : ''}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleOpenReview();
+                  }}
+                  className="w-full bg-white rounded-2xl p-4 sm:p-4.5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md border border-slate-100 transition-colors duration-150 cursor-pointer group text-left relative z-20 block no-underline text-inherit"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50/90 border border-amber-100 text-amber-500 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition">
+                      <Star className="w-6 h-6 stroke-[2]" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-amber-500 transition">
+                        Leave a Review
+                      </h2>
+                      <p className="text-[10px] sm:text-xs font-bold text-slate-400 tracking-wider uppercase mt-0.5">
+                        Tell us how we did
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-amber-500 transition">
-                      Leave a Review
-                    </h2>
-                    <p className="text-[10px] sm:text-xs font-bold text-slate-400 tracking-wider uppercase mt-0.5">
-                      Tell us how we did
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-amber-500 group-hover:translate-x-0.5 transition" />
-              </a>
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-amber-500 group-hover:translate-x-0.5 transition" />
+                </a>
+              )}
 
               {/* 3. Reels */}
               <a
@@ -993,12 +1053,14 @@ function CustomerMenuContent() {
               <h1 className="font-extrabold text-[#0f172a] text-sm leading-tight truncate">
                 {restaurantName}
               </h1>
-              <div className="flex items-center gap-1 text-[11px] mt-0.5">
-                <span className="text-amber-500 font-bold flex items-center gap-0.5">
-                  ⭐ 4.8
-                </span>
-                <span className="text-slate-400 font-medium">(2.5k reviews)</span>
-              </div>
+              {experienceSettings.showReviewShower && (
+                <div className="flex items-center gap-1 text-[11px] mt-0.5">
+                  <span className="text-amber-500 font-bold flex items-center gap-0.5">
+                    ⭐ 4.8
+                  </span>
+                  <span className="text-slate-400 font-medium">(2.5k reviews)</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1387,12 +1449,21 @@ function CustomerMenuContent() {
                 type="button"
                 disabled={isOrdering || cartItems.length === 0}
                 onClick={handleCheckout}
-                className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 active:opacity-75 transition cursor-pointer"
+                className={`w-full py-4 rounded-xl text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl active:opacity-75 transition cursor-pointer disabled:bg-slate-300 ${
+                  experienceSettings.paymentTiming === 'PRE_ORDER'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                }`}
               >
                 {isOrdering ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Placing Order with Kitchen...</span>
+                  </>
+                ) : experienceSettings.paymentTiming === 'PRE_ORDER' ? (
+                  <>
+                    <CreditCard className="w-4 h-4 stroke-[2.2]" />
+                    <span>Pay & Commit Order ({totalAmount.toLocaleString()} {currency}) &rarr;</span>
                   </>
                 ) : (
                   <>
@@ -1411,6 +1482,17 @@ function CustomerMenuContent() {
         isOpen={isReelsOpen}
         onClose={handleCloseReels}
         onOrderDish={handleOrderDishFromReels}
+      />
+
+      {/* Pre-Order Upfront Payment Modal (Active when Payment Timing is set to PRE_ORDER) */}
+      <PaymentModal
+        isOpen={isPreOrderPaymentOpen}
+        onClose={() => setIsPreOrderPaymentOpen(false)}
+        tableNumber={tableNum}
+        tableId={tableId}
+        grandTotal={totalAmount}
+        itemCount={totalCount}
+        onConfirmPayment={handlePreOrderConfirmPayment}
       />
     </div>
   );

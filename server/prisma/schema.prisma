@@ -62,8 +62,10 @@ model Restaurant {
   logoUrl      String?
   bannerUrl    String?
   phone        String?
-  address      String?
-  areas        Area[]
+  address          String?
+  showReviewShower Boolean       @default(true)
+  paymentTiming    String        @default("FINAL")
+  areas            Area[]
   tables       Table[]
   categories   Category[]
   menuItems    MenuItem[]
