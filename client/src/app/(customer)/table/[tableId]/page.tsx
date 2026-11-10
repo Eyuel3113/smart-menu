@@ -960,7 +960,7 @@ function CustomerMenuContent() {
 
           <div className="pt-8 pb-4 text-center">
             <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase select-none">
-              Smart Menu &bull; Powered by Eyuta Creatives
+              አገልግል • Agelgil Smart Dining &bull; Powered by Eyuta Creatives
             </p>
           </div>
         </div>

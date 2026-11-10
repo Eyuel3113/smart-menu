@@ -3,12 +3,16 @@ import './globals.css';
 import { ThemeProvider } from '@/context/ThemeContext';
 
 export const metadata: Metadata = {
-  title: 'SmartMenu | Next-Gen Real-Time Dining',
+  title: 'አገልግል | Agelgil Smart Dining',
   description: 'Instant contactless digital menu, live order tracking, and real-time kitchen display system.',
+  icons: {
+    icon: '/images/agelgil-logo.png',
+    apple: '/images/agelgil-logo.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'SmartMenu',
+    title: 'አገልግል',
   },
   other: {
     'msapplication-navbutton-color': '#090d1e',

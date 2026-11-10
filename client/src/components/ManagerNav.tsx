@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
@@ -80,10 +81,17 @@ export default function ManagerNav({ onRefresh }: ManagerNavProps) {
       {/* Brand & Left Navigation */}
       <div className="flex items-center gap-6">
         <Link href="/manager" className="flex items-center gap-2.5 shrink-0 group">
-          <div className="w-8 h-8 rounded-lg bg-amber-400 flex items-center justify-center text-gray-950 font-black text-sm shadow-[0_0_12px_rgba(251,191,36,0.4)] group-hover:scale-105 transition">
-            M
+          <div className="relative w-8 h-8 rounded-full overflow-hidden shadow-xs ring-1 ring-amber-400/50 group-hover:scale-105 transition-transform duration-200 bg-amber-50 dark:bg-slate-900 flex items-center justify-center shrink-0">
+            <Image
+              src="/images/agelgil-logo.png"
+              alt="አገልግል"
+              fill
+              className="object-cover"
+              sizes="32px"
+              priority
+            />
           </div>
-          <span className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">SmartMenu</span>
+          <span className="text-lg font-black text-slate-900 dark:text-white tracking-tight">አገልግል</span>
         </Link>
 
         {/* Subtle Vertical Divider */}

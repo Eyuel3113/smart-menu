@@ -342,7 +342,7 @@ export default function TableMatrixZonesPage() {
         </head>
         <body>
           <div class="card">
-            <div class="brand">SmartMenu Digital</div>
+            <div class="brand">አገልግል • Agelgil Digital</div>
             <div class="title">Table #${table.tableNumber}</div>
             <img src="${table.qrCodeUrl}" />
             <div class="sub">Scan QR with your phone to order</div>
@@ -813,7 +813,7 @@ export default function TableMatrixZonesPage() {
                 </div>
               )}
               <span className="mt-3 text-xs font-black text-gray-900 uppercase tracking-widest">
-                Table #{qrModalTable.tableNumber} • SmartMenu
+                Table #{qrModalTable.tableNumber} • አገልግል
               </span>
             </div>
 
